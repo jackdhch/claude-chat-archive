@@ -1,0 +1,186 @@
+# claude-chat-archive
+
+[中文](README.md)
+
+Merge your local **Claude Code sessions** and your **claude.ai data export** into an **offline web archive** (filters, full-text search) plus a set of **chunked Markdown files that Claude itself can read** — entirely on your own machine. No network, no server, no upload.
+
+> [!WARNING]
+> **Local use only.** The output directory contains your **raw conversations** with Claude (code, accounts, personal matters).
+> **Never commit it to git, never put it in a synced folder, never upload or share it.** Redaction (on by default) only catches things with a fixed format — emails, phone numbers, keys — not names, stories, or screenshots. See [docs/PRIVACY.md](docs/PRIVACY.md) (Chinese).
+
+![Home page (light): filter by source, project, topic; monthly and daily activity charts](docs/screenshots/home-light.png)
+
+<table><tr>
+<td><img src="docs/screenshots/home-dark-topics.png" alt="Home page, dark mode, grouped by topic"></td>
+<td><img src="docs/screenshots/session.png" alt="Session page with the prompt navigator on the right"></td>
+</tr><tr>
+<td align="center">Dark mode, grouped by topic</td>
+<td align="center">Session page: collapsible thinking and tool calls, redaction placeholders</td>
+</tr></table>
+
+<sub>All screenshots are generated from the fake data in `tests/fixtures`.</sub>
+
+> **Note:** the user interface is currently **Chinese only**. The `language` config field is reserved for future translations; contributions welcome.
+
+## Features
+
+- **Two sources, one archive**: Claude Code sessions under `~/.claude/projects` (including sub-agents and workflows) and the claude.ai data export. On WSL it also picks up sessions from the Windows side.
+- **Home page**: group by project / topic / month; filter by source, star, project, topic; monthly bar chart and daily heatmap; type to filter titles, press Enter for full-text search.
+- **Full-text search** across every prompt and reply; results jump straight to the matching text.
+- **Session pages**: the full message flow; thinking, tool calls, compaction summaries and claude.ai branches are collapsible; a prompt navigator on the right, `j` / `k` to jump between prompts.
+- **Handles the messy parts of the data**: content duplicated by resumed sessions is shown once; context compaction boundaries are marked; sub-agents are linked back to the call that spawned them; claude.ai edit / regenerate branches are all kept; claude.ai artifacts are replayed to their final version. See [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md) (Chinese).
+- **Docs for Claude**: Markdown split into chunks that each fit in a single Claude Code `Read` call, with monthly indexes. Point your local Claude at the folder and it can look up past conversations.
+- **Redaction on by default**: emails, phone numbers, Chinese ID and bank card numbers (checksum-verified), API keys, private keys and more are replaced when data is read, and all output is re-scanned at the end.
+- **Light and dark themes**, following the system or toggled by hand.
+- **Minimal dependencies**: Python 3.9+ standard library only. Optionally `markdown-it-py` for nicer Markdown rendering (the installer puts it in the repo's own `.venv`).
+
+## One-step install
+
+**macOS / Linux / WSL:**
+
+```bash
+git clone https://github.com/jackdhch/claude-chat-archive.git
+cd claude-chat-archive
+bash install.sh
+```
+
+**Windows (PowerShell):**
+
+```powershell
+git clone https://github.com/jackdhch/claude-chat-archive.git; cd claude-chat-archive; powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+The installer:
+
+1. checks for Python 3.9+;
+2. asks whether to install `markdown-it-py` into the repo's `.venv` (the only step that touches the network — a plain `pip install`; optional);
+3. auto-detects data locations and writes a config file (an existing config is never overwritten);
+4. runs a health check listing how many files each source has;
+5. runs the first export;
+6. asks whether to add a daily scheduled update.
+
+Then open `index.html` in the output directory (default `~/claude-archive-output/index.html`; the installer prints the command).
+
+Flags (Windows spelling in parentheses):
+
+| Flag | Effect |
+|---|---|
+| `--yes` (`-Yes`) | no questions, accept all defaults. **The defaults are: install markdown-it-py (network) and add a daily scheduled job** |
+| `--no-schedule` (`-NoSchedule`) | don't add a scheduled job |
+| `--no-markdown` (`-NoMarkdown`) | don't install markdown-it-py; the whole install stays offline |
+| `--time 07:30` (`-Time 07:30`) | time of the scheduled job |
+
+Fully unattended, offline, no scheduling: `bash install.sh --yes --no-markdown --no-schedule`. Re-running the installer is safe. Installing markdown-it-py leaves a pip cache in `~/.cache/pip`, which uninstall does not remove.
+
+**WSL users**: auto-detection also picks up the Windows side (`C:\Users\<you>\.claude\projects`, claude.ai archives in the Windows Downloads folder). Remove those `/mnt/c/...` paths from the config if you only want WSL sessions.
+
+**Want your claude.ai chats too?** In claude.ai go to Settings → Privacy → Export data. The emailed download link expires 24 hours after delivery. Put the `data-…-batch-0000.zip` file(s) in your Downloads folder (no need to unzip) and run the export again. Details in [docs/CONFIG.md](docs/CONFIG.md).
+
+## Manual usage
+
+Without the installer (with no config file, data sources are auto-detected and defaults are used):
+
+```bash
+python3 claude_archive.py --init-config   # optional: write a config file and print detected sources
+python3 claude_archive.py --doctor        # check only: files found per source, config validity; no export
+python3 claude_archive.py                 # export (a few minutes for a few hundred sessions)
+```
+
+| Flag | Effect |
+|---|---|
+| `--config PATH` | use a specific config file |
+| `--out DIR` | write to a different directory this time |
+| `--redact` / `--no-redact` | force redaction on / off this time |
+| `--allow-synced-output` | allow output inside a git work tree or synced folder (not recommended) |
+| `--selftest` | run only the redaction and branch-tree self-tests |
+| `--dump-prompts DIR` / `--dump-convs DIR` | export prompts without a navigator title / sessions without topics (for AI processing, see below) |
+| `--merge-titles FILE…` / `--merge-topics FILE…` | merge AI-written titles `{"prompt-id": "title"}` / topics `{"session-id": {"t": ["topic"], "s": "one-line summary"}}` (optional `"_topics"` table) into the local cache |
+
+Exit codes: `0` success; `1` final checks failed (previous output left untouched, reasons in the report); `2` config error.
+
+Config file: `~/.config/claude-archive/config.json` (respects `$XDG_CONFIG_HOME`; Windows `%APPDATA%\claude-archive\config.json`). Main fields:
+
+| Field | Default | Meaning |
+|---|---|---|
+| `out_dir` | `~/claude-archive-output` | output directory; must be local, not in a git work tree or synced folder |
+| `claude_code_roots` | `["~/.claude/projects"]` | Claude Code session folders (WSL also adds the Windows side) |
+| `extra_backup_roots` | `[]` | your own backups, used only for sessions already deleted from the source |
+| `claude_ai_zips` | `["~/Downloads/data-*-batch-*.zip"]` | claude.ai export archives (globs) |
+| `desktop_meta_globs` | auto-detected | Claude desktop app metadata (title, star, archived) |
+| `redact` | `true` | redaction on/off |
+| `redact_literals` / `redact_literal_files` | `[]` | exact strings (or files with one per line) to always redact |
+| `doc_token_limit` | `15000` | estimated token budget per Markdown chunk |
+| `timezone` | `"local"` | display time zone, or a UTC offset like `"+08:00"` |
+| `language` | `"zh"` | reserved |
+
+Full reference (Chinese): [docs/CONFIG.md](docs/CONFIG.md).
+
+### Let your local Claude read your history
+
+Add one line to your **machine-local, global** `~/.claude/CLAUDE.md` (not a project `CLAUDE.md` that gets committed):
+
+```
+Conversation archive: ~/claude-archive-output/docs/README.md — read it first, then Grep.
+```
+
+## Optional: AI-written prompt titles and topics
+
+By default the navigator shows each prompt's first sentence, and "group by topic" is empty. Claude can fill these in:
+
+- **As a Claude Code skill (recommended)**: `mkdir -p ~/.claude/skills && cp -r skills/claude-archive ~/.claude/skills/`, then ask Claude to "update my chat archive".
+- **As a script**: `python3 scripts/enrich_with_claude.py` (requires the `claude` CLI).
+
+Details in [skills/README.md](skills/README.md) (Chinese). Both use `--dump-prompts` / `--dump-convs` to export what's missing and `--merge-titles` / `--merge-topics` to merge results into the local cache.
+
+> [!NOTE]
+> This step **does use the network**: prompt excerpts and session titles are sent to Anthropic and count against your Claude usage. The export itself stays fully offline, and everything works without this step.
+
+## Scheduled updates
+
+The installer can add a daily job (default 19:00):
+
+- **macOS / Linux / WSL**: one crontab line tagged `# claude-archive`; your other crontab lines are untouched. Log: `~/.local/share/claude-archive/cron.log`. On WSL, start cron first (`sudo service cron start`); jobs don't run while WSL is off. On macOS, grant `/usr/sbin/cron` Full Disk Access to read `~/Downloads`.
+- **Windows**: a Task Scheduler task named `claude-archive`.
+
+Re-run the installer with `--time HH:MM` to change the time; the old job is replaced.
+
+## FAQ
+
+**It refuses to run: "inside a git work tree" / "looks like a synced folder".** Intentional. Pick a plain local `out_dir`, or pass `--allow-synced-output` if you really mean it.
+
+**My home directory is itself a git repo (dotfiles), so the default output is refused too.** The check walks up looking for a real `.git` (`.git/HEAD` exists, or `.git` is a file; an empty leftover `.git` folder doesn't count). Put `out_dir` outside that repo, or pass `--allow-synced-output` once you're sure it won't be committed.
+
+**Old sessions are missing.** Claude Code deletes sessions older than 30 days by default; deleted ones can't be recovered. Add `"cleanupPeriodDays": 3650` to `~/.claude/settings.json` to keep them.
+
+**claude.ai chats don't show up.** Run `--doctor`. The archives must match `claude_ai_zips`; if the export was split into several batches, download all of them — a missing batch number is an error.
+
+**Checks failed (exit code 1).** Your previous output is untouched; the new build is in `…output.new`. See the "检查失败" (checks failed) section at the end of `report.txt`. If redaction left something behind, please open an issue with the rule name only — **never paste the original text**.
+
+**Markdown shows as plain text.** `markdown-it-py` isn't installed; re-run the installer and accept, or `pip install markdown-it-py`.
+
+**Will it modify my Claude data?** No. All sources are read-only, and credential files (`~/.claude/sessions/`, `*.key`, …) are never opened.
+
+## Uninstall
+
+```bash
+bash uninstall.sh                  # remove the scheduled job; asks about config and cache
+bash uninstall.sh --yes            # no questions: remove the job, keep config and cache
+bash uninstall.sh --purge-config   # delete config and cache without asking (cache holds AI-written titles/topics)
+bash uninstall.sh --purge-output   # also delete the exported archive
+```
+
+Windows: `powershell -ExecutionPolicy Bypass -File .\uninstall.ps1` (`-PurgeConfig`, `-PurgeOutput`).
+
+The repo folder and `.venv` are left alone — delete the folder if you're done. Think before deleting the output: it may be the only copy of sessions Claude Code has already cleaned up.
+
+## Tests
+
+```bash
+bash tests/run_tests.sh      # runs on the fake data in tests/fixtures in a temporary HOME, ~5 s, never touches real data
+```
+
+`KEEP=1` keeps the temp dir; `PYTHON=.venv/bin/python` runs with markdown-it-py.
+
+## License
+
+[MIT](LICENSE). Not affiliated with Anthropic; not an official tool. Claude Code's session files are an undocumented internal format and may change.

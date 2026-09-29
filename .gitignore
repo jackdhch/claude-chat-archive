@@ -1,0 +1,29 @@
+# 输出目录（里面是你的原始对话，绝不能提交）
+claude-archive-output*/
+*-output/
+*.new/
+*.prev/
+.claude-archive
+# claude.ai 导出包、缓存、配置
+*.zip
+!tests/fixtures/**/*.zip
+titles.json
+topics.json
+config.json
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+# 解压出来的 claude.ai 导出包、dump 出来的待处理条目、散落的产物、日志
+conversations.json
+users.json
+memories.json
+/projects/
+prompts-*.jsonl
+in-*.jsonl
+*.log
+/data.js
+/search.js
+/stats.json
+/report.txt

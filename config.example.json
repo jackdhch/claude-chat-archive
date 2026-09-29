@@ -1,0 +1,15 @@
+{
+  "_说明": "复制到 ~/.config/claude-archive/config.json（Windows：%APPDATA%\\claude-archive\\config.json）再改；也可以直接运行 --init-config 自动生成。以 _ 开头的键是注释，会被忽略。路径可用 ~ 和环境变量，glob 支持 * 和 **。",
+  "out_dir": "~/claude-archive-output",
+  "claude_code_roots": ["~/.claude/projects"],
+  "extra_backup_roots": [],
+  "claude_ai_zips": ["~/Downloads/data-*-batch-*.zip"],
+  "desktop_meta_globs": [],
+  "redact": true,
+  "redact_literals": [],
+  "redact_literal_files": [],
+  "doc_token_limit": 15000,
+  "timezone": "local",
+  "allow_synced_output": false,
+  "language": "zh"
+}

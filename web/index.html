@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Claude 对话存档</title>
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+</head>
+<body class="home">
+<aside class="side" aria-label="筛选">
+  <div class="brand">
+    <span class="brand-name">Claude 对话存档</span>
+    <span class="brand-sub">本地离线 · 仅限本机</span>
+    <span id="theme-slot"></span>
+  </div>
+  <section class="facet"><h2>来源</h2><div id="f-src"></div></section>
+  <section class="facet"><h2>标记</h2><div id="f-star"></div></section>
+  <section class="facet"><h2>项目</h2><div id="f-proj"></div></section>
+  <section class="facet"><h2>主题</h2><div id="f-topic"></div></section>
+  <div class="side-foot">
+    <a href="profile.html">Claude 记忆 / 用户画像</a>
+  </div>
+</aside>
+
+<main class="main">
+  <header class="top">
+    <h1>全部会话</h1>
+    <p class="sub">{{GEN}}</p>
+  </header>
+
+  <section class="overview" aria-label="总览">
+    <div class="tiles" id="tiles"></div>
+    <div class="charts">
+      <figure class="chart">
+        <figcaption><span id="m-title">每月会话数</span><span class="seg sm" id="metric" role="group" aria-label="柱子统计什么"><button type="button" data-m="n">会话数</button><button type="button" data-m="nq">提问数</button></span><span class="legend"><i class="sw cc"></i>Claude Code<i class="sw ai"></i>claude.ai</span></figcaption>
+        <div id="months"></div>
+        <details class="dtable"><summary>按月数据表</summary><div id="months-table"></div></details>
+      </figure>
+      <figure class="chart">
+        <figcaption><span>每天会话数</span><span class="legend" id="heat-legend"></span></figcaption>
+        <div id="heat" class="scroll-x"></div>
+      </figure>
+    </div>
+  </section>
+
+  <div class="bar">
+    <label class="search">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
+      <input id="q" type="search" autocomplete="off" placeholder="过滤标题、小标题、总结 · 回车搜全文" aria-label="搜索">
+      <kbd>/</kbd>
+    </label>
+    <div class="seg" id="group" role="group" aria-label="分组方式">
+      <button type="button" data-g="proj">按项目</button>
+      <button type="button" data-g="topic">按主题</button>
+      <button type="button" data-g="month">按月份</button>
+    </div>
+    <label class="sort">排序
+      <select id="sort">
+        <option value="recent">最近活动</option>
+        <option value="nq">提问数</option>
+        <option value="nmsg">消息数</option>
+      </select>
+    </label>
+    <button type="button" class="ghost" id="fold">全部折叠</button>
+    <span class="count" id="count"></span>
+    <div class="chips" id="chips" role="group" aria-label="当前筛选" hidden></div>
+  </div>
+
+  <section id="ft" class="ft" hidden aria-live="polite"></section>
+  <section id="list" class="list"></section>
+</main>
+
+<div id="tip" class="tip" role="tooltip" hidden></div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

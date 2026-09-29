@@ -1,0 +1,67 @@
+{
+ "_说明": "由 tests/make_fixtures.py 按设计算出；run_tests.sh 用它对账。cc_* 是去重之后的数。",
+ "cc_sessions": 7,
+ "cc_subagents": 2,
+ "cc_workflows": 1,
+ "cc_shown_rows": 63,
+ "cc_msgs": 51,
+ "cc_prompts": 23,
+ "ai_convs": 3,
+ "ai_msgs": 13,
+ "ai_prompts": 6,
+ "ai_branches": {
+  "3b972bc3-4323-5e10-a11b-5ad0d73357f5": 2
+ },
+ "ai_files": {
+  "8cd2c577-d69f-5cc0-95b2-cbc0250d3d39": 3
+ },
+ "session_ids": {
+  "basic": "d581368f-6349-5273-8ba4-ed2fc5c0a657",
+  "compact": "465c6366-053c-5040-b9b0-80e9ac7e4a07",
+  "old": "e8da3254-e919-58d4-9843-46e3f86a4e2c",
+  "new": "faab9f84-18f3-5461-8cc5-e3b9a6a6c4ac",
+  "agents": "bbdf5bf9-5b1e-588a-877d-8a347d67db5a",
+  "long": "41665524-161c-5395-87e1-5dc1ff6f1f9c",
+  "backup_only": "1c7f61b1-ee67-599a-a88f-ef0ca2cc95a4"
+ },
+ "ai_ids": {
+  "branch": "3b972bc3-4323-5e10-a11b-5ad0d73357f5",
+  "tools": "8cd2c577-d69f-5cc0-95b2-cbc0250d3d39",
+  "legacy": "16fdfd93-23a3-58bf-a554-cbab6f7dbbd0"
+ },
+ "once_markers": [
+  "PREFIX-MARK-1",
+  "PREFIX-MARK-2",
+  "PREFIX-MARK-3",
+  "PREFIX-MARK-4",
+  "OLD-TAIL-MARK-1",
+  "OLD-TAIL-MARK-2",
+  "NEW-MARK-1",
+  "NEW-MARK-2",
+  "BACKUP-MARK"
+ ],
+ "prefix_uuids": [
+  "662b6295-63dd-5505-9386-bdd414b4c361",
+  "4f41ee63-9f39-5a2d-aaf2-2bd51d9925d4",
+  "f906c826-ee14-567f-90bb-0cdf6eff882a",
+  "cc519edc-3770-51b8-8a6b-8c902b1518e6"
+ ],
+ "must_contain": [
+  "REPLAYED-V2",
+  "ART-V2",
+  "ATTACH-MARK",
+  "LEGACY-A"
+ ],
+ "secrets": {
+  "email": "alice.fake@example.com",
+  "user_email": "demo.owner@example.org",
+  "phone": "13912345678",
+  "user_phone": "13700001111",
+  "idcard": "110105199001011232",
+  "card": "4111111111111111",
+  "bark_key": "FakeBarkKey9x8y7z6w",
+  "literal_cfg": "ZebraLiteralCfg7777",
+  "literal_file": "OtterLiteralFile8899"
+ },
+ "placeholder": "This block is not supported on your current device yet."
+}
