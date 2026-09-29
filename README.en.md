@@ -25,6 +25,7 @@ Merge your local **Claude Code sessions** and your **claude.ai data export** int
 ## Features
 
 - **Two sources, one archive**: Claude Code sessions under `~/.claude/projects` (including sub-agents and workflows) and the claude.ai data export. On WSL it also picks up sessions from the Windows side.
+- **ChatGPT history (optional)**: the official ChatGPT data export gets its own page, `chatgpt/index.html` (cross-linked with the Claude archive), with the same filters and full-text search; code, execution output, reasoning, Canvas documents and images are kept. See "ChatGPT history" below.
 - **Home page**: group by project / topic / month; filter by source, star, project, topic; monthly bar chart and daily heatmap; type to filter titles, press Enter for full-text search.
 - **Full-text search** across every prompt and reply; results jump straight to the matching text.
 - **Session pages**: the full message flow; thinking, tool calls, compaction summaries and claude.ai branches are collapsible; a prompt navigator on the right, `j` / `k` to jump between prompts.
@@ -76,6 +77,31 @@ Fully unattended, offline, no scheduling: `bash install.sh --yes --no-markdown -
 
 **Want your claude.ai chats too?** In claude.ai go to Settings → Privacy → Export data. The emailed download link expires 24 hours after delivery. Put the `data-…-batch-0000.zip` file(s) in your Downloads folder (no need to unzip) and run the export again. Details in [docs/CONFIG.md](docs/CONFIG.md).
 
+## ChatGPT history
+
+To archive your ChatGPT web conversations too:
+
+1. In ChatGPT: avatar → **Settings → Data controls → Export data**, then confirm.
+2. You get an email with a download link (it expires; request again if needed, and sign in with the same account to download).
+3. Put the zip in your Downloads folder (no need to unzip or rename) and run the export again. The config field `chatgpt_zips` defaults to `~/Downloads/*.zip` (on WSL the Windows Downloads folder is added too). **Archives are recognised by content**: a zip counts as ChatGPT's only if it has `conversations.json` (large accounts are split into `conversations-000.json`, …) whose conversations carry a `mapping`. claude.ai archives and unrelated zips are skipped.
+
+Output goes to `<out>/chatgpt/`:
+
+- `chatgpt/index.html`: the ChatGPT home page ("ChatGPT 对话存档"), sharing the stylesheet and scripts one level up; its source colour is magenta. Grouping by "project" treats a custom GPT as a project and puts the rest under "普通对话" (plain chats). Both home pages link to each other at the top ("Claude 存档 / ChatGPT 存档").
+- `chatgpt/s/gpt-<id>.html`: session pages. Code, execution output and reasoning are collapsible; Canvas documents are saved under `files/gpt-<id>/`; images go to `chatgpt/img/`; your custom instructions are shown once, collapsed, at the top; old branches from "edit and resend" / "regenerate" hang collapsed where they diverged.
+- `docs/gpt/` and `docs/index/gpt-YYYY-MM.md`: chunked Markdown for Claude to read (see `docs/README.md`).
+- Without a ChatGPT archive there is no `chatgpt/` folder, and the Claude home page shows no link to it.
+
+Hidden content (system prompts, the memory tool, internal web-browsing data, empty messages — the ChatGPT web UI does not show them either) is left out of the pages but counted by reason in `report.txt`. `--doctor` shows how many ChatGPT archives and conversations were found.
+
+<table><tr>
+<td><img src="docs/screenshots/chatgpt-home-light.png" alt="ChatGPT home page (light)"></td>
+<td><img src="docs/screenshots/chatgpt-session-dark.png" alt="ChatGPT session page (dark): collapsed code, execution output, reasoning"></td>
+</tr><tr>
+<td align="center">ChatGPT home (light)</td>
+<td align="center">Session page (dark): code, output and reasoning collapse</td>
+</tr></table>
+
 ## Manual usage
 
 Without the installer (with no config file, data sources are auto-detected and defaults are used):
@@ -106,6 +132,7 @@ Config file: `~/.config/claude-archive/config.json` (respects `$XDG_CONFIG_HOME`
 | `claude_code_roots` | `["~/.claude/projects"]` | Claude Code session folders (WSL also adds the Windows side) |
 | `extra_backup_roots` | `[]` | your own backups, used only for sessions already deleted from the source |
 | `claude_ai_zips` | `["~/Downloads/data-*-batch-*.zip"]` | claude.ai export archives (globs) |
+| `chatgpt_zips` | `["~/Downloads/*.zip"]` | globs of zips to check for a ChatGPT export (recognised by content, not by name) |
 | `desktop_meta_globs` | auto-detected | Claude desktop app metadata (title, star, archived) |
 | `redact` | `true` | redaction on/off |
 | `redact_literals` / `redact_literal_files` | `[]` | exact strings (or files with one per line) to always redact |
@@ -151,6 +178,8 @@ Re-run the installer with `--time HH:MM` to change the time; the old job is repl
 **My home directory is itself a git repo (dotfiles), so the default output is refused too.** The check walks up looking for a real `.git` (`.git/HEAD` exists, or `.git` is a file; an empty leftover `.git` folder doesn't count). Put `out_dir` outside that repo, or pass `--allow-synced-output` once you're sure it won't be committed.
 
 **Old sessions are missing.** Claude Code deletes sessions older than 30 days by default; deleted ones can't be recovered. Add `"cleanupPeriodDays": 3650` to `~/.claude/settings.json` to keep them.
+
+**ChatGPT chats don't show up.** Run `--doctor` and look for "找到 ChatGPT 导出包 N 个" (ChatGPT archives found). The zip must match `chatgpt_zips` (by default any `*.zip` in Downloads) and contain `conversations.json`. The ChatGPT page is `chatgpt/index.html`, linked from the top of the main home page.
 
 **claude.ai chats don't show up.** Run `--doctor`. The archives must match `claude_ai_zips`; if the export was split into several batches, download all of them — a missing batch number is an error.
 

@@ -61,7 +61,65 @@
   "card": "4111111111111111",
   "bark_key": "FakeBarkKey9x8y7z6w",
   "literal_cfg": "ZebraLiteralCfg7777",
-  "literal_file": "OtterLiteralFile8899"
+  "literal_file": "OtterLiteralFile8899",
+  "gpt_user_email": "gpt.owner@example.net",
+  "gpt_user_phone": "+442079460123"
  },
- "placeholder": "This block is not supported on your current device yet."
+ "placeholder": "This block is not supported on your current device yet.",
+ "gpt_zips": 2,
+ "gpt_convs": 4,
+ "gpt_raw": 5,
+ "gpt_nodes": 36,
+ "gpt_null": 4,
+ "gpt_shown": 22,
+ "gpt_prompts": 7,
+ "gpt_main_shown": 19,
+ "gpt_hidden": {
+  "系统消息": 1,
+  "工具内部(bio/web.run/web.search)": 2,
+  "浏览器内部(非引用)": 1,
+  "内容类型:sonic_webpage": 1,
+  "内容类型:system_error": 1,
+  "内容类型:tether_browsing_display": 1,
+  "视觉隐藏": 1,
+  "空消息": 1
+ },
+ "gpt_hidden_total": 9,
+ "gpt_ctx": 1,
+ "gpt_branches": {
+  "79771246-6448-5a31-9bfc-a72f16927fee": 2
+ },
+ "gpt_files": {
+  "79771246-6448-5a31-9bfc-a72f16927fee": 1
+ },
+ "gpt_ids": {
+  "full": "79771246-6448-5a31-9bfc-a72f16927fee",
+  "plain": "f0358b62-d11f-5f3d-9029-57a32ad266dd",
+  "dup": "914f6888-fc7b-5b32-bd64-79a68d98fea0",
+  "split": "e43538d6-31c4-5b85-9e56-0f45e60a945d"
+ },
+ "gpt_must_contain": [
+  "GPT-A2 ",
+  "GPT-A2-REGEN",
+  "GPT-OLD-ANSWER",
+  "CANVAS-MARK",
+  "QUOTE-MARK",
+  "UNKNOWN-TYPE-MARK",
+  "DUP-NEW-REPLY-2",
+  "GPT-SPLIT-A",
+  "385",
+  "心算验证",
+  "已思考 8 秒"
+ ],
+ "gpt_must_not": [
+  "DUP-OLD-REPLY",
+  "HIDDEN-SYS-MARK",
+  "HIDDEN-BIO-MARK",
+  "HIDDEN-WEBRUN-MARK",
+  "HIDDEN-BROWSER-MARK",
+  "HIDDEN-SONIC-MARK",
+  "HIDDEN-ERR-MARK",
+  "HIDDEN-DISPLAY-MARK",
+  "HIDDEN-VIS-MARK"
+ ]
 }

@@ -1,12 +1,13 @@
 # 工作原理
 
-这份文档讲清楚两种数据长什么样、有哪些坑、工具为什么这么处理。想改代码或者遇到“数字对不上”时先读这里。
+这份文档讲清楚几种数据长什么样、有哪些坑、工具为什么这么处理。想改代码或者遇到“数字对不上”时先读这里。
 
 整体流程只有一条线：
 
 ```
 Claude Code 会话 (*.jsonl) ─┐
-claude.ai 导出包 (*.zip)   ─┼→ 读入 + 当场脱敏 → 同一份内存结构 ─┬→ 网页（首页 / 会话页 / 全文搜索）
+claude.ai 导出包 (*.zip)   ─┤
+ChatGPT 导出包 (*.zip)     ─┼→ 读入 + 当场脱敏 → 同一份内存结构 ─┬→ 网页（首页 / 会话页 / 全文搜索）
 桌面应用元数据 (*.json)    ─┘                                  └→ Markdown 文档（给 Claude 读）
                                                                    ↓
                                              从磁盘重读产物做检查 → 全过才替换正式输出
@@ -126,14 +127,61 @@ claude.ai 里 Claude 生成的文件没有单独导出，只能从工具调用�
 
 ---
 
-## 三、网页
+## 三、ChatGPT 导出包
+
+### 1. 怎么认包、怎么读
+
+ChatGPT 的 zip 没有固定文件名，所以**认内容**：配置 `chatgpt_zips`（默认 `~/Downloads/*.zip`）匹配到的每个 zip，看里面有没有 `conversations.json` 或 `conversations-000.json`、`conversations-001.json`……（正则 `^conversations(-\d+)?\.json$`），再偷看第一个文件的开头，会话元素带 `mapping` 键的是 ChatGPT，带 `chat_messages` 的是 claude.ai（不收）。拆分的文件按名字排序合并；外面可能还包了一层 `{"conversations": [...]}`。`user.json` 的邮箱和电话进精确脱敏表；`chat.html`、`message_feedback.json`、`shared_conversations.json` 忽略。
+
+同一个对话（`conversation_id`，没有就用 `id`）在几个包里都出现：取 `update_time` 最大的整份对话，相同则后读的算数。
+
+### 2. 对话是一棵树，主线是 current_node
+
+会话里的 `mapping` 是 `{节点id: {id, message | null, parent | null, children[]}}`。编辑提问后重发、重新生成回答都会长出新的兄弟节点，**`current_node` 就是网页上当时显示的那一条的末端**——这一点比 claude.ai 的导出强：不用猜主线。
+
+- **主线** = 从 `current_node` 沿 `parent` 走回根，反转。`current_node` 缺失才退回“时间最晚的叶子”。
+- **其余分支**和 claude.ai 共用同一个 `ai_tree`（多传一个“已给定主线”参数）：每个叶子往上走到已渲染节点，折叠挂在那里。
+- `message` 为 `null` 的节点（通常是根）不显示，但父子关系要穿过它：一个消息的“父”是最近的有消息的祖先。它们单独计数。
+- 检查：全部节点 = 显示 + 各类隐藏 + 页首自定义指令 + `message` 为 null，每一条最多渲染一次。
+
+### 3. 哪些消息不显示（以及为什么和 convoviz 不完全一样）
+
+判断顺序（先满足的先算）：
+
+1. **自定义指令**（`is_user_system_message` 或 `content_type = user_editable_context`）：不进消息流，在会话页页首折叠显示一次。它常常同时带 `is_visually_hidden_from_conversation`，所以必须排在“视觉隐藏”前面。
+2. `is_visually_hidden_from_conversation`。
+3. `role = system`（系统提示词）。
+4. `role = tool` 且工具名是 `bio`（记忆）、`web.run`、`web.search`：内部数据。
+5. `role = tool`、工具名 `browser`，且不是 `tether_quote`（`tether_quote` 是网页引用，要显示）。
+6. `content_type` 是 `sonic_webpage`、`system_error`、`tether_browsing_display`。
+7. 内容为空。
+
+隐藏的按原因计数写进 `report.txt`（`gpt隐藏:…`）。不认识的 `content_type` 不丢：原样显示 JSON 的前 2000 字并计数（`gpt未知类型:…`）。
+
+**为什么显示代码和思考**：参考实现（convoviz）为了导出“像网页那样”的对话，把代码、执行结果、思考都当内部内容藏掉。但这个存档的用途是让你和 Claude 以后能回忆“当时到底算了什么、怎么想的”，所以：`code`（发给 python 的代码）、`execution_output`（执行结果）、`thoughts` / `reasoning_recap`（思考）都显示，做成和 Claude 那边一样的折叠条（标签“代码”“执行结果”“思考”），默认收起，不干扰阅读。给 Claude 读的 Markdown 里代码只留一行、执行结果留 200 字、思考不收录（同 Claude Code 的做法）。
+
+### 4. 各种内容类型怎么显示
+
+- `text`：`parts` 是字符串，按 Markdown 渲染。`multimodal_text`：`parts` 里字符串和图片（`image_asset_pointer`，`asset_pointer` 是 `file-service://file-XXX` 或 `sediment://…`）混排。
+- 图片：按资源 id 前缀到 zip 里找（根目录 `file-XXX-原名.png`、`dalle-generations/`、`user-*/`），存到 `chatgpt/img/<sha1>.<扩展名>`；`metadata.attachments` 里的图片也一样（已经作为 `image_asset_pointer` 出现的不重复），非图片附件只留文件名。只收 png / jpg / gif / webp，不收 svg。
+- Canvas：`recipient = canmore.create_textdoc` 时，`parts[0]` 或 `text` 是 JSON `{name, type, content}`，存成 `files/gpt-<对话id>/NN-名字.md`（`type = document`；`code/html` 存 `.html`；其余加 `.txt`），会话页里的折叠条旁边有链接。Canvas 的后续更新（`update_textdoc`）不重放，只作为普通代码条显示。
+- 时间：`create_time` / `update_time` 是 Unix 秒（浮点，可能是 null）；null 时用消息时间兜底。`status`、`weight` 2026-07 以后有的消息没有，不当必填。
+- 首页：自定义 GPT（`gizmo_id`）当“项目”，没有就归“普通对话”；模型取自各条 assistant 消息的 `metadata.model_slug`。
+
+### 5. 独立页面
+
+`chatgpt/` 是自成一套的：首页 `chatgpt/index.html`、数据 `chatgpt/data.js`、搜索索引 `chatgpt/search.js`、会话页 `chatgpt/s/`、图片 `chatgpt/img/`；样式和脚本（`style.css`、`app.js` 等）**不复制**，用相对路径引用上一级。`app.js` 看数据里的 `src` 决定画哪几个来源（`gpt` 页只有 ChatGPT 一项）。Canvas 文档在 `files/gpt-<id>/`，给 Claude 读的文档在 `docs/gpt/` 和 `docs/index/gpt-YYYY-MM.md`。没有 ChatGPT 包时整个 `chatgpt/` 不生成。
+
+---
+
+## 四、网页
 
 - 纯静态，`file://` 直接打开。首页数据写成 `data.js`；全文搜索索引写成 `search.js`，第一次搜索时才插入 `<script>` 加载——`file://` 下浏览器不允许 `fetch` 本地文件。
 - 搜索是子串匹配，不分词不排序，最多列 300 条命中，每条带前后文；点开链接带 `#:~:text=`，直接跳到原文位置。
 - 安全：所有文本都经过唯一的 `html.escape` 出口；搜索结果只用 `textContent` 写入；链接只允许内部相对路径和 `http(s)`。Markdown 用 markdown-it-py 的 `js-default` 预设（会转义 `<script>`，不生成 `javascript:` 链接）；没装这个库就退回纯文本显示。
 - 会话页右侧是提问导航：每条提问一个刻度，悬停展开小标题列表，`j` / `k` 键跳到下一个 / 上一个提问。小标题默认是提问首句截短，可以让 AI 批量写得更好（见 `skills/claude-archive/SKILL.md`）。
 
-## 四、给 Claude 读的 Markdown 文档
+## 五、给 Claude 读的 Markdown 文档
 
 目标是让本机的 Claude Code 能用 Read 和 Grep 翻你的历史对话。
 
@@ -143,13 +191,13 @@ claude.ai 里 Claude 生成的文件没有单独导出，只能从工具调用�
 - **收录什么**：提问、Claude 的正文、`AskUserQuestion` 的回答、计划全文全部保留；thinking 丢掉；工具调用每次一行（工具名 + 关键参数）；工具结果一般丢掉，报错留 200 字，子 agent / workflow 的返回留 3000 字。所有省略处都留下带字数的标记。
 - **入口**：`docs/README.md` 说明怎么找，`docs/index/` 是按月的索引（每个会话一行：标题、项目、首问）。
 
-## 五、最后的检查
+## 六、最后的检查
 
 每次运行最后都从磁盘重读产物检查，任何一项不过就以退出码 1 结束，旧输出不动：
 
 1. `--selftest`：各种写法的密钥、紧挨汉字的手机号、校验位正确的身份证号都能被替换；uuid、`pkg@1.2.3`、普通长数字不被误伤；人造一棵分支树，每个节点恰好出现一次。
 2. Claude Code 对账：去重后应显示的条数 = 实际渲染的条数；同一条渲染两次的 = 0；子 agent 挂接各类相加 = 总数。
-3. claude.ai 对账：导出包里的消息 uuid 集合 = 网页里的集合；占位符出现 0 次。
+3. claude.ai 对账：导出包里的消息 uuid 集合 = 网页里的集合；占位符出现 0 次。ChatGPT 对账：节点总数 = 显示 + 各类隐藏 + 自定义指令 + null；渲染过的节点集合 = 应显示的集合，每条只渲染一次；网页里的用户块数 = 分类出的提问数。
 4. **独立重数**：不走分类函数，直接从原始 jsonl 重新数一遍人工提问，必须等于网页里用户消息块的数量。两套逻辑互相校验，改分类规则时漏掉一类会立刻暴露。
 5. 开着脱敏时的敏感复扫（见 [PRIVACY.md](PRIVACY.md)）。
 6. 每块文档都在大小上限内；网页里所有相对链接的目标都存在。

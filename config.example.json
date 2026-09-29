@@ -4,6 +4,7 @@
   "claude_code_roots": ["~/.claude/projects"],
   "extra_backup_roots": [],
   "claude_ai_zips": ["~/Downloads/data-*-batch-*.zip"],
+  "chatgpt_zips": ["~/Downloads/*.zip"],
   "desktop_meta_globs": [],
   "redact": true,
   "redact_literals": [],

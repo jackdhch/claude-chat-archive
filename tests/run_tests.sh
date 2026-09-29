@@ -23,6 +23,7 @@ cat > "$CFG" <<EOF
   "claude_code_roots": ["~/.claude/projects"],
   "extra_backup_roots": ["~/session-backup"],
   "claude_ai_zips": ["~/Downloads/data-*-batch-*.zip"],
+  "chatgpt_zips": ["~/Downloads/*.zip"],
   "desktop_meta_globs": ["~/desktop-meta/claude-code-sessions/**/local_*.json"],
   "redact": true,
   "redact_literals": ["$LIT_CFG"],
@@ -94,6 +95,45 @@ for k, v in E['secrets'].items():
     hit = [f for f, s in texts.items() if v in s or v in html.unescape(s)]
     if mode == 'redact': chk(f'脱敏后扫不到 {k}', not hit, hit[:3])
     else: chk(f'不脱敏时能扫到 {k}', hit, '一处都没有')
+# ChatGPT（chatgpt/ 目录）：按 make_fixtures.py 的设计对账
+G = jsarr(out + '/chatgpt/data.js', 'D'); gid = E['gpt_ids']
+chk('根目录 data.js 里没有 gpt 会话', not [d for d in D if d['src'] == 'gpt'], [d['id'] for d in D if d['src'] == 'gpt'][:3])
+for k, e in [('gpt会话', 'gpt_convs'), ('gpt导出包', 'gpt_zips'), ('gpt原始会话(含跨包重复)', 'gpt_raw'), ('gpt节点', 'gpt_nodes'), ('gpt空节点(message为null)', 'gpt_null'), ('gpt显示', 'gpt_shown'),
+             ('gpt提问', 'gpt_prompts'), ('gpt主线显示', 'gpt_main_shown'), ('gpt自定义指令(页首)', 'gpt_ctx'), ('网页·ChatGPT用户块', 'gpt_prompts')]:
+    chk(f'stats.json {k} = {E[e]}', st.get(k) == E[e], f'实际 {st.get(k)}')
+for r, n in E['gpt_hidden'].items(): chk(f'stats.json 隐藏「{r}」= {n}', st.get('gpt隐藏:' + r) == n, st.get('gpt隐藏:' + r))
+chk(f'隐藏合计 = {E["gpt_hidden_total"]}', sum(v for k, v in st.items() if k.startswith('gpt隐藏:')) == E['gpt_hidden_total'], '')
+chk('全部节点 = 显示 + 各类隐藏 + 自定义指令 + null', st['gpt节点'] == st['gpt显示'] + st['gpt自定义指令(页首)'] + st['gpt空节点(message为null)'] + E['gpt_hidden_total'], '')
+chk('chatgpt/data.js 会话数、来源、消息数、提问数', len(G) == E['gpt_convs'] and all(d['src'] == 'gpt' for d in G) and sum(d['nmsg'] for d in G) == E['gpt_shown'] and sum(d['nq'] for d in G) == E['gpt_prompts'],
+    (len(G), sum(d['nmsg'] for d in G), sum(d['nq'] for d in G)))
+gb = {d['id']: d for d in G}
+chk(f'ChatGPT 分支段数 = 2', gb.get('gpt-' + gid['full'], {}).get('branches') == 2, gb.get('gpt-' + gid['full'], {}).get('branches'))
+chk('自定义 GPT（gizmo_id）当项目', gb.get('gpt-' + gid['plain'], {}).get('proj') == 'GPT g-p-fakegizmo123456', gb.get('gpt-' + gid['plain'], {}).get('proj'))
+chk('title 为 null 时用第一问做标题', gb.get('gpt-' + gid['plain'], {}).get('t', '').startswith('GPT-G2-Q'), gb.get('gpt-' + gid['plain'], {}).get('t'))
+chk('create/update_time 为 null 时用消息时间', gb.get('gpt-' + gid['plain'], {}).get('start', '').startswith('2026-03-'), gb.get('gpt-' + gid['plain'], {}).get('start'))
+chk('模型来自消息的 model_slug', gb.get('gpt-' + gid['full'], {}).get('models') == ['gpt-5', 'gpt-5-thinking'], gb.get('gpt-' + gid['full'], {}).get('models'))
+gpages = {k: out + f'/chatgpt/s/gpt-{v}.html' for k, v in gid.items()}
+chk('每个 ChatGPT 会话一个页面', all(os.path.exists(p) for p in gpages.values()), [k for k, p in gpages.items() if not os.path.exists(p)])
+gall = ''.join(rd(p) for p in gpages.values()) + ''.join(rd(p) for p in glob.glob(out + '/docs/gpt/*.md')) + ''.join(rd(p) for p in glob.glob(out + '/files/gpt-*/*'))
+for m in E['gpt_must_contain']: chk(f'ChatGPT 产物里能找到 {m}', m in gall, '找不到')
+alltxt = ''.join(texts.values())
+for m in E['gpt_must_not']: chk(f'{m} 不出现（隐藏 / 被新版覆盖）', m not in alltxt, '出现了')
+fh = rd(gpages['full'])
+chk('自定义指令在会话页只出现一次', fh.count('CUSTOM-INSTR-MARK') == 1, fh.count('CUSTOM-INSTR-MARK'))
+chk('current_node 指向的那条是主线，最新的重新生成版在分支里', re.search(r'class="br">(?:(?!</details>).)*GPT-A2-REGEN', fh, re.S) and not re.search(r'class="br">(?:(?!</details>).)*GPT-A2 收到', fh, re.S), '分支/主线颠倒')
+chk('编辑重发的旧问法在分支里', re.search(r'class="br">(?:(?!</details>).)*GPT-OLD-Q', fh, re.S), '')
+chk('代码 / 执行结果 / 思考做成折叠条', all(f'<span class="tn">{t}</span>' in fh for t in ('代码', '执行结果', '思考', 'Canvas', '网页引用')), '')
+im = re.findall(r'<img src="\.\./img/([0-9a-f]+\.png)"', fh) + re.findall(r'<img src="\.\./img/([0-9a-f]+\.png)"', rd(gpages['plain']))
+chk('图片出现在会话页（含 dalle-generations 里的）且文件存在', len(im) == 2 and all(os.path.exists(out + '/chatgpt/img/' + f) for f in im), im)
+cf = glob.glob(out + f'/files/gpt-{gid["full"]}/*')
+chk('Canvas 文件存在且是文档正文', len(cf) == E['gpt_files'][gid['full']] and 'CANVAS-MARK' in rd(cf[0]) and cf[0].endswith('.md'), cf)
+chk('docs/gpt 每个对话一份、有月索引', len(glob.glob(out + '/docs/gpt/*.md')) >= E['gpt_convs'] and os.path.exists(out + '/docs/index/gpt-2026-03.md') and 'ChatGPT' in rd(out + '/docs/README.md'), '')
+chk('两个首页互相有链接', 'chatgpt/index.html' in rd(out + '/index.html') and '../index.html' in rd(out + '/chatgpt/index.html'), '')
+ch = rd(out + '/chatgpt/index.html')
+chk('ChatGPT 首页标题、样式脚本引用上一级、数据文件在本目录', '<title>ChatGPT 对话存档</title>' in ch and 'href="../style.css"' in ch and 'src="../app.js"' in ch and 'src="data.js"' in ch, '')
+chk('ChatGPT 会话页的返回链接回 chatgpt 首页', '<a href="../index.html">← ChatGPT 对话存档</a>' in fh and 'href="../../style.css"' in fh, '')
+chk('chatgpt/ 下没有复制一份 css/js', not [f for f in ('style.css', 'app.js', 'theme.js', 'nav.js') if os.path.exists(out + '/chatgpt/' + f)], '')
+chk('chatgpt/search.js 只含 ChatGPT 页', 'GPT-Q1' in rd(out + '/chatgpt/search.js') and 'GPT-Q1' not in rd(out + '/search.js') and 'BRANCH-Q1' not in rd(out + '/chatgpt/search.js'), '')
 # 仅限本机：权限、无外链脚本
 chk('输出目录权限 700', stat.S_IMODE(os.stat(out).st_mode) == 0o700, oct(stat.S_IMODE(os.stat(out).st_mode)))
 loose = [f for f in texts if stat.S_IMODE(os.stat(os.path.join(out, f)).st_mode) & 0o077]
@@ -117,10 +157,12 @@ tally() { while IFS= read -r l; do echo "$l"; case "$l" in "  通过  "*) PASS=$
 echo "== 1. 自检 / 配置 / 体检"
 expect_code 0 "--selftest" --selftest
 expect_code 0 "--init-config 写默认配置" --init-config
+grep -Eq "探测到 ChatGPT 导出包 [0-9]+ 个" "$T/last.log" && ok "--init-config 报告探测到几个 ChatGPT 包" || bad "--init-config 没报告 ChatGPT 包"
 [ -f "$XDG_CONFIG_HOME/claude-archive/config.json" ] && "$PY" -c "import json,sys;d=json.load(open(sys.argv[1]));assert '~/.claude/projects' in d['claude_code_roots'] and d['redact'] is True" "$XDG_CONFIG_HOME/claude-archive/config.json" \
   && ok "默认配置在 XDG 路径，含 ~/.claude/projects 且 redact=true" || bad "默认配置位置或内容不对"
 expect_code 0 "--doctor" --doctor --config "$CFG"
 grep -q "markdown" "$T/last.log" && ok "--doctor 报告 markdown-it 状态" || bad "--doctor 输出里没提 markdown-it"
+grep -q "找到 ChatGPT 导出包 2 个，共 5 段对话" "$T/last.log" && ok "--doctor 报告 ChatGPT 包 2 个、5 段对话（claude.ai 的 zip 按内容被排除）" || { bad "--doctor 的 ChatGPT 包数量不对"; grep ChatGPT "$T/last.log"; }
 echo '{"out_dir": 1}' > "$T/badcfg.json"; expect_code 2 "类型错误的配置 → 退出码 2" --doctor --config "$T/badcfg.json"
 expect_code 2 "不存在的配置 → 退出码 2" --config "$T/nope.json"
 
@@ -154,20 +196,35 @@ mkdir -p "$T/notours" && echo keep > "$T/notours/keep.txt"
 expect_code '!0' "不是本工具产物的非空目录被拒绝" --config "$CFG" --out "$T/notours"
 [ -f "$T/notours/keep.txt" ] && ok "别人的文件没被动" || bad "别人的文件被删/移走了"
 
+echo "== 5b. 没有 ChatGPT 包时不生成 chatgpt/"
+sed 's#"~/Downloads/\*.zip"#"~/Downloads/data-*-batch-*.zip"#' "$CFG" > "$T/cfg_nogpt.json"   # 通配只匹配到 claude.ai 的包：内容不是 ChatGPT，必须被排除
+expect_code 0 "只有 claude.ai 包时导出" --config "$T/cfg_nogpt.json" --out "$T/out_g0"
+expect_code 0 "--doctor（没有 ChatGPT 包）" --doctor --config "$T/cfg_nogpt.json"
+grep -q "找到 ChatGPT 导出包 0 个" "$T/last.log" && ok "--doctor 报告 0 个 ChatGPT 包" || bad "--doctor 没报告 0 个"
+[ ! -e "$T/out_g0/chatgpt" ] && ! ls "$T/out_g0/docs/gpt" "$T/out_g0/files"/gpt-* >/dev/null 2>&1 && ok "没有 chatgpt/、docs/gpt、files/gpt-*" || bad "没有 ChatGPT 包却生成了 ChatGPT 产物"
+! grep -q "chatgpt/index.html" "$T/out_g0/index.html" && ok "Claude 首页不显示 ChatGPT 链接" || bad "Claude 首页多了 ChatGPT 链接"
+grep -q "检查全部通过" "$T/out_g0/report.txt" && ok "没有 ChatGPT 包时检查也全过" || bad "没有 ChatGPT 包时检查没过"
+
 echo "== 6. AI 标题 / 主题缓存"
 SID1=$("$PY" -c "import json;print(json.load(open('$FX/expected.json'))['session_ids']['basic'])")
 expect_code 0 "--dump-prompts" --config "$CFG" --dump-prompts "$T/dump"
 ls "$T/dump"/prompts-*.jsonl >/dev/null 2>&1 && ok "写出 prompts-*.jsonl" || bad "没有 prompts-*.jsonl"
 U1=$(head -1 "$T/dump"/prompts-00.jsonl 2>/dev/null | "$PY" -c "import json,sys;print(json.loads(sys.stdin.read())['id'])" 2>/dev/null)
-echo "{\"$U1\": \"TITLE-MERGE-MARK\"}" > "$T/titles.json"
-echo "{\"cc-$SID1\": {\"t\": [\"演示主题\"], \"s\": \"TOPIC-MERGE-MARK\"}, \"_topics\": [{\"name\": \"演示主题\"}]}" > "$T/topics.json"
+grep -q GPT-Q1 "$T/dump"/prompts-*.jsonl && ok "--dump-prompts 含 ChatGPT 的提问" || bad "--dump-prompts 没有 ChatGPT 的提问"
+GU=$(grep -h GPT-Q1 "$T/dump"/prompts-*.jsonl | head -1 | "$PY" -c "import json,sys;print(json.loads(sys.stdin.read())['id'])")
+GID=$("$PY" -c "import json;print(json.load(open('$FX/expected.json'))['gpt_ids']['full'])")
+echo "{\"$U1\": \"TITLE-MERGE-MARK\", \"$GU\": \"GPT-TITLE-MERGE-MARK\"}" > "$T/titles.json"
+echo "{\"cc-$SID1\": {\"t\": [\"演示主题\"], \"s\": \"TOPIC-MERGE-MARK\"}, \"gpt-$GID\": {\"t\": [\"演示主题\"], \"s\": \"GPT-TOPIC-MERGE-MARK\"}, \"_topics\": [{\"name\": \"演示主题\"}]}" > "$T/topics.json"
 expect_code 0 "--merge-titles" --config "$CFG" --merge-titles "$T/titles.json"
 expect_code 0 "--merge-topics" --config "$CFG" --merge-topics "$T/topics.json"
 expect_code 0 "合并后再导出" --config "$CFG" --out "$T/out_r"
 grep -q TITLE-MERGE-MARK -r "$T/out_r/s" "$T/out_r/data.js" && ok "AI 小标题进了产物" || bad "AI 小标题没进产物"
 grep -q TOPIC-MERGE-MARK "$T/out_r/data.js" && ok "主题总结进了 data.js" || bad "主题总结没进 data.js"
+grep -q GPT-TITLE-MERGE-MARK -r "$T/out_r/chatgpt/s" && ok "ChatGPT 提问的 AI 小标题进了会话页" || bad "ChatGPT 的 AI 小标题没生效"
+grep -q GPT-TOPIC-MERGE-MARK "$T/out_r/chatgpt/data.js" && ! grep -q GPT-TOPIC-MERGE-MARK "$T/out_r/data.js" && ok "ChatGPT 主题总结进了 chatgpt/data.js（不在根 data.js）" || bad "ChatGPT 主题总结位置不对"
 expect_code 0 "--dump-convs" --config "$CFG" --out "$T/out_r" --dump-convs "$T/dump2"
 ls "$T/dump2"/in-*.jsonl >/dev/null 2>&1 && ! grep -q "cc-$SID1" "$T/dump2"/in-*.jsonl && ok "dump-convs 跳过已打标签的会话" || bad "dump-convs 结果不对"
+grep -q '"id": "gpt-' "$T/dump2"/in-*.jsonl && ! grep -q "gpt-$GID" "$T/dump2"/in-*.jsonl && ok "dump-convs 含 ChatGPT 会话（key 是 gpt-<id>），已打标签的跳过" || bad "dump-convs 的 ChatGPT 会话不对"
 [ -z "$(ls -A "$T/xdg/data/claude-archive" 2>/dev/null | grep -v -E '^(titles|topics)\.json$')" ] && [ -f "$T/xdg/data/claude-archive/titles.json" ] && ok "缓存在 XDG_DATA_HOME/claude-archive/" || bad "缓存位置不对"
 
 echo

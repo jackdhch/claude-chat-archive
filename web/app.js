@@ -2,7 +2,12 @@
 (function () {
   'use strict';
   var D = window.D || [];
-  var CHAT = '(chat)', NOTOPIC = '(未分类)', LIMIT = 30;
+  var CHAT = '(chat)', GENERAL = '(普通对话)', NOTOPIC = '(未分类)', LIMIT = 30;
+  // 来源：键、全称、短名。ChatGPT 存档是独立页面（数据里只有 gpt）：来源筛选、图表、图例都只列 gpt；Claude 页照旧 cc + ai。
+  var SRC = { cc: ['Claude Code', 'Code'], ai: ['claude.ai', 'Chat'], gpt: ['ChatGPT', 'GPT'] };
+  var GPT = D.some(function (d) { return d.src === 'gpt'; });
+  var ACT = GPT ? ['gpt'] : ['cc', 'ai'];   // 图表里画哪几个来源（堆叠顺序）
+  var PSRC = GPT ? 'gpt' : 'cc';            // 哪个来源的 _pk 是“项目”
   var WEEK = ['一', '二', '三', '四', '五', '六', '日'];
   var SVGNS = 'http://www.w3.org/2000/svg';
 
@@ -28,6 +33,8 @@
   // 项目文件夹名拆成 [日期, 名字]：260101_demo、260101报告、my-app-260101（6 位日期在开头或结尾）
   function projParts(k) {
     if (k === CHAT) return ['', 'claude.ai 对话'];
+    if (k === GENERAL) return ['', '普通对话'];
+    if (/^GPT /.test(k)) return ['', k];   // 自定义 GPT：'GPT g-xxxx'，别把 id 末尾的数字当日期
     if (/^(\/home\/[^\/]+|\/Users\/[^\/]+|[A-Za-z]:[\\\/]Users[\\\/][^\\\/]+)[\\\/]?$/.test(k)) return ['', '主目录'];
     var s = k.split(/[\\\/]/).filter(Boolean).pop() || k, m;
     if ((m = /^(\d{6})[_\- ]?(.+)$/.exec(s))) return [m[1], m[2]];
@@ -52,7 +59,7 @@
   }
   var maxLast = '';
   D.forEach(function (d) {
-    d._pk = d.src === 'ai' ? CHAT : (d.proj || '(未记录项目)');
+    d._pk = d.src === 'ai' ? CHAT : d.src === 'gpt' ? (d.proj || GENERAL) : (d.proj || '(未记录项目)');
     d._tp = d.topics && d.topics.length ? d.topics : null;
     d._last = d.end || d.start || '';
     d._sum = summary(d);
@@ -68,7 +75,7 @@
     D.forEach(function (d) { keyOf(d).forEach(function (k) { c[k] = (c[k] || 0) + 1; }); });
     return Object.keys(c).sort(function (a, b) { return c[b] - c[a]; });
   }
-  var PROJS = tally(function (d) { return d.src === 'cc' ? [d._pk] : []; });
+  var PROJS = tally(function (d) { return d.src === PSRC ? [d._pk] : []; });
   var TOPICS = tally(function (d) { return d._tp || []; });
   var HAS_UNTAGGED = TOPICS.length && D.some(function (d) { return !d._tp; });
 
@@ -120,19 +127,17 @@
   }
   function renderSide() {
     var cs = count('src', function (d) { return ['all', d.src]; });
-    facet($('f-src'), [
-      { key: 'all', label: '全部', n: cs.all },
-      { key: 'cc', label: 'Claude Code', n: cs.cc, dot: 'cc' },
-      { key: 'ai', label: 'claude.ai', n: cs.ai, dot: 'ai' }
-    ], st.src, function (k) { st.src = k || 'all'; });
+    facet($('f-src'), (GPT ? [] : [{ key: 'all', label: '全部', n: cs.all }]).concat(ACT.map(function (k) {
+      return { key: k, label: SRC[k][0], n: cs[k], dot: k };
+    })), st.src, function (k) { st.src = k || 'all'; });
 
     var cst = count('star', function (d) { return d.star ? ['y'] : []; });
     facet($('f-star'), [{ key: 'y', label: '★ 只看星标', n: cst.y }], st.star ? 'y' : null,
       function (k) { st.star = !!k; });
 
     var cp = count('proj', function (d) { return [d._pk]; });
-    facet($('f-proj'), PROJS.concat([CHAT]).map(function (k) {
-      return { key: k, proj: 1, n: cp[k], title: k === CHAT ? 'claude.ai 网页对话（没有项目文件夹）' : k, dot: k === CHAT ? 'ai' : null };
+    facet($('f-proj'), PROJS.concat(GPT ? [] : [CHAT]).map(function (k) {
+      return { key: k, proj: 1, n: cp[k], title: k === CHAT ? 'claude.ai 网页对话（没有项目文件夹）' : k === GENERAL ? '没有指定自定义 GPT 的普通对话' : k, dot: k === CHAT ? 'ai' : null };
     }), st.proj, function (k) { st.proj = k; });
 
     var box = $('f-topic');
@@ -146,10 +151,11 @@
   // ---------- 统计卡 ----------
   function dayNum(s) { return Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)) / 864e5; }
   function renderTiles(L) {
-    var nq = 0, cc = 0, days = {}, pc = {}, tc = {}, first = '', last = '';
+    var nq = 0, ns = {}, days = {}, pc = {}, tc = {}, first = '', last = '';
     L.forEach(function (d) {
       nq += d.nq || 0;
-      if (d.src === 'cc') { cc++; pc[d._pk] = (pc[d._pk] || 0) + 1; }
+      ns[d.src] = (ns[d.src] || 0) + 1;
+      if (d.src === PSRC) pc[d._pk] = (pc[d._pk] || 0) + 1;
       days[d.start.slice(0, 10)] = 1;
       (d._tp || []).forEach(function (t) { tc[t] = (tc[t] || 0) + 1; });
       if (!first || d.start < first) first = d.start;
@@ -159,10 +165,10 @@
     var tp = top(pc), tt = top(tc);
     var span = L.length ? dayNum(last) - dayNum(first) + 1 : 0;
     var T = [
-      ['会话', String(L.length), 'Code ' + cc + ' · Chat ' + (L.length - cc)],
+      ['会话', String(L.length), ACT.map(function (k) { return SRC[k][1] + ' ' + (ns[k] || 0); }).join(' · ')],
       ['提问', String(nq), L.length ? '平均每个会话 ' + (nq / L.length).toFixed(1) + ' 次' : '—'],
       ['时间跨度', span ? span + ' 天' : '—', span ? first.slice(0, 10) + ' 起 · 有活动 ' + Object.keys(days).length + ' 天' : '—'],
-      ['最活跃项目', tp ? null : '—', tp ? pc[tp] + ' 个会话 · Code' : '当前筛选里没有 Code 会话', tp, 1],
+      ['最活跃项目', tp ? null : '—', tp ? pc[tp] + ' 个会话 · ' + SRC[PSRC][1] : '当前筛选里没有 ' + SRC[PSRC][1] + ' 会话', tp, 1],
       ['最活跃主题', tt || '—', tt ? tc[tt] + ' 个会话' : '还没有主题标签', tt, 1]
     ];
     var box = $('tiles');
@@ -206,34 +212,34 @@
   var METRIC = { n: ['会话数', '个会话'], nq: ['提问数', '次提问'] };
   function renderMonths(L) {
     var c = {}, mt = METRIC[st.metric];
-    MONTHS.forEach(function (k) { c[k] = { cc: 0, ai: 0 }; });
-    L.forEach(function (d) { var x = c[d.start.slice(0, 7)]; if (x) x[d.src === 'ai' ? 'ai' : 'cc'] += st.metric === 'nq' ? d.nq || 0 : 1; });
-    monthRows = MONTHS.map(function (k) { return { k: k, cc: c[k].cc, ai: c[k].ai }; });
+    MONTHS.forEach(function (k) { c[k] = { cc: 0, ai: 0, gpt: 0 }; });
+    L.forEach(function (d) { var x = c[d.start.slice(0, 7)]; if (x) x[d.src] += st.metric === 'nq' ? d.nq || 0 : 1; });
+    monthRows = MONTHS.map(function (k) { return { k: k, v: c[k], t: c[k].cc + c[k].ai + c[k].gpt }; });
     var max = 1;
-    monthRows.forEach(function (r) { max = Math.max(max, r.cc + r.ai); });
+    monthRows.forEach(function (r) { max = Math.max(max, r.t); });
     var step = niceStep(max), top = Math.ceil(max / step) * step;
     var W = 386, padL = 30, padR = 4, padT = 8, plotH = 116, base = padT + plotH, H = base + 34;
     var band = (W - padL - padR) / Math.max(1, MONTHS.length), bw = Math.min(24, band * 0.64);
     $('m-title').textContent = '每月' + mt[0];
     [].forEach.call($('metric').children, function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-m') === st.metric)); });
-    var s = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'viz', role: 'img', 'aria-label': '每月' + mt[0] + '，Claude Code 与 claude.ai 堆叠' });
+    var s = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'viz', role: 'img', 'aria-label': '每月' + mt[0] + '，' + ACT.map(function (k) { return SRC[k][0]; }).join(' 与 ') + (ACT.length > 1 ? ' 堆叠' : '') });
     for (var v = 0; v <= top; v += step) {
       var y = base - v / top * plotH;
       s.appendChild(svg('line', { x1: padL, x2: W - padR, y1: y, y2: y, class: v ? 'grid' : 'axis' }));
       s.appendChild(svg('text', { x: padL - 6, y: y + 3.5, class: 'tick', 'text-anchor': 'end' }, String(v)));
     }
     monthRows.forEach(function (r, i) {
-      var x = padL + i * band + (band - bw) / 2, hc = r.cc / top * plotH, ha = r.ai / top * plotH;
-      var dim = st.month && st.month !== r.k ? ' dim' : '';
-      if (hc > 0) s.appendChild(svg('path', { d: colPath(x, base - hc, bw, hc, ha > 0 ? 0 : 4), class: 'm-cc' + dim }));
-      if (ha > 0) {
-        var gap = hc > 0 ? 2 : 0, h = Math.max(1, ha - gap);
-        s.appendChild(svg('path', { d: colPath(x, base - hc - gap - h, bw, h, 4), class: 'm-ai' + dim }));
-      }
+      var x = padL + i * band + (band - bw) / 2, dim = st.month && st.month !== r.k ? ' dim' : '', used = 0;
+      var segs = ACT.filter(function (k) { return r.v[k] > 0; });   // 自下而上堆叠，段间留 2px 底色缝，最上面一段圆角
+      segs.forEach(function (k, j) {
+        var hs = r.v[k] / top * plotH, gap = used > 0 ? 2 : 0, h = Math.max(1, hs - gap);
+        s.appendChild(svg('path', { d: colPath(x, base - used - gap - h, bw, h, j === segs.length - 1 ? 4 : 0), class: 'm-' + k + dim }));
+        used += hs;
+      });
       var cx = padL + i * band + band / 2, mo = +r.k.slice(5, 7);
       s.appendChild(svg('text', { x: cx, y: base + 14, class: 'tick' + (st.month === r.k ? ' on' : ''), 'text-anchor': 'middle' }, mo + '月'));
       if (i === 0 || mo === 1) s.appendChild(svg('text', { x: cx, y: base + 28, class: 'tick yr', 'text-anchor': 'middle' }, r.k.slice(0, 4)));
-      var hit = svg('rect', { x: padL + i * band, y: padT, width: band, height: plotH, class: 'hit', 'data-i': i, tabindex: 0, 'aria-label': monthLabel(r.k) + '：Code ' + r.cc + '，Chat ' + r.ai + ' ' + mt[1] });
+      var hit = svg('rect', { x: padL + i * band, y: padT, width: band, height: plotH, class: 'hit', 'data-i': i, tabindex: 0, 'aria-label': monthLabel(r.k) + '：' + ACT.map(function (k) { return SRC[k][1] + ' ' + r.v[k]; }).join('，') + ' ' + mt[1] });
       s.appendChild(hit);
     });
     var box = $('months');
@@ -242,11 +248,11 @@
 
     var t = el('table'), hr = el('tr');
     t.appendChild(el('caption', null, mt[0]));
-    ['月份', 'Claude Code', 'claude.ai', '合计'].forEach(function (h) { hr.appendChild(el('th', null, h)); });
+    ['月份'].concat(ACT.map(function (k) { return SRC[k][0]; }), ACT.length > 1 ? ['合计'] : []).forEach(function (h) { hr.appendChild(el('th', null, h)); });
     t.appendChild(hr);
     monthRows.slice().reverse().forEach(function (r) {
       var tr = el('tr');
-      [monthLabel(r.k), r.cc, r.ai, r.cc + r.ai].forEach(function (x) { tr.appendChild(el('td', null, String(x))); });
+      [monthLabel(r.k)].concat(ACT.map(function (k) { return r.v[k]; }), ACT.length > 1 ? [r.t] : []).forEach(function (x) { tr.appendChild(el('td', null, String(x))); });
       t.appendChild(tr);
     });
     $('months-table').textContent = '';
@@ -255,7 +261,7 @@
   function monthTip(i, ev) {
     var r = monthRows[i];
     if (!r) return;
-    showTip(ev, monthLabel(r.k), [[String(r.cc + r.ai), METRIC[st.metric][1]], [String(r.cc), 'Claude Code', 'cc'], [String(r.ai), 'claude.ai', 'ai']], monthFoot(r.k));
+    showTip(ev, monthLabel(r.k), [[String(r.t), METRIC[st.metric][1]]].concat(ACT.map(function (k) { return [String(r.v[k]), SRC[k][0], k]; })), monthFoot(r.k));
   }
   function monthFoot(k) { return st.month === k ? '再点一次取消月份筛选' : '点击只看这个月'; }
 
@@ -275,8 +281,8 @@
     if (!isFinite(DAY0)) return;
     heatDays = {};
     L.forEach(function (d) {
-      var n = dayNum(d.start), x = heatDays[n] || (heatDays[n] = { cc: 0, ai: 0 });
-      x[d.src === 'ai' ? 'ai' : 'cc']++;
+      var n = dayNum(d.start), x = heatDays[n] || (heatDays[n] = { cc: 0, ai: 0, gpt: 0 });
+      x[d.src]++;
     });
     // 固定档位（不随筛选变）：0 · 1–2 · 3–5 · 6–9 · 10+
     function lvl(n) { return !n ? 0 : n <= 2 ? 1 : n <= 5 ? 2 : n <= 9 ? 3 : 4; }
@@ -299,7 +305,7 @@
       for (var r = 0; r < 7; r++) {
         var n = BASE + w * 7 + r;
         if (n < DAY0 || n > DAY1) continue;
-        var c = heatDays[n], tot = c ? c.cc + c.ai : 0;
+        var c = heatDays[n], tot = c ? c.cc + c.ai + c.gpt : 0;
         var dim = st.month && iso(n).slice(0, 7) !== st.month ? ' dim' : '';
         s.appendChild(svg('rect', { x: left + w * P, y: topY + r * P, width: C, height: C, rx: 2, class: 'hc l' + lvl(tot) + dim, 'data-n': n }));
       }
@@ -317,10 +323,10 @@
     });
   }
   function heatTip(n, ev) {
-    var c = heatDays[n] || { cc: 0, ai: 0 }, day = iso(n);
+    var c = heatDays[n] || { cc: 0, ai: 0, gpt: 0 }, day = iso(n), tot = c.cc + c.ai + c.gpt;
     showTip(ev, day + ' 周' + WEEK[(new Date(n * 864e5).getUTCDay() + 6) % 7],
-      [[String(c.cc + c.ai), '个会话'], [String(c.cc), 'Claude Code', 'cc'], [String(c.ai), 'claude.ai', 'ai']],
-      c.cc + c.ai ? monthFoot(day.slice(0, 7)) : null);
+      [[String(tot), '个会话']].concat(ACT.map(function (k) { return [String(c[k]), SRC[k][0], k]; })),
+      tot ? monthFoot(day.slice(0, 7)) : null);
   }
 
   // ---------- 悬停提示 ----------
@@ -391,9 +397,9 @@
     var map = {}, out = [];
     function add(k, d) {
       var g = map[k];
-      if (!g) { g = map[k] = { key: k, items: [], nq: 0, nmsg: 0, cc: 0, first: d.start, last: '' }; out.push(g); }
+      if (!g) { g = map[k] = { key: k, items: [], nq: 0, nmsg: 0, c: {}, first: d.start, last: '' }; out.push(g); }
       g.items.push(d); g.nq += d.nq || 0; g.nmsg += d.nmsg || 0;
-      if (d.src === 'cc') g.cc++;
+      g.c[d.src] = (g.c[d.src] || 0) + 1;
       if (d.start < g.first) g.first = d.start;
       if (d._last > g.last) g.last = d._last;
     }
@@ -430,7 +436,7 @@
     if (d._sum) m.appendChild(el('span', 'sm' + (d.sum ? '' : ' fallback'), d._sum));
     a.appendChild(m);
     var wh = d.src === 'ai' ? el('span', 'where', 'claude.ai') : projInto(el('span', 'where'), d._pk);
-    if (d.src === 'cc') wh.title = d._pk;
+    if (d.src !== 'ai') wh.title = d._pk;
     a.appendChild(wh);
     a.appendChild(el('span', 'nq', (d.nq || 0) + ' 问'));
     var w = el('span', 'when', when(d._last));
@@ -455,10 +461,10 @@
       h.setAttribute('aria-expanded', String(!closed));
       h.appendChild(el('span', 'chev'));
       h.appendChild(groupTitle(g.key));
-      if (st.group === 'proj' && g.key !== CHAT) h.appendChild(el('span', 'gp', g.key));
-      var meta = el('span', 'gm'), bar = el('span', 'gbar'), nc = g.items.length - g.cc;
-      bar.title = 'Code ' + g.cc + ' · Chat ' + nc;
-      [['cc', g.cc], ['ai', nc]].forEach(function (x) { if (x[1]) { var i = el('i', x[0]); i.style.flexGrow = x[1]; bar.appendChild(i); } });
+      if (st.group === 'proj' && PSRC === 'cc' && g.key !== CHAT) h.appendChild(el('span', 'gp', g.key));
+      var meta = el('span', 'gm'), bar = el('span', 'gbar');
+      bar.title = ACT.map(function (k) { return SRC[k][1] + ' ' + (g.c[k] || 0); }).join(' · ');
+      ACT.forEach(function (k) { if (g.c[k]) { var i = el('i', k); i.style.flexGrow = g.c[k]; bar.appendChild(i); } });
       meta.appendChild(bar);
       meta.appendChild(el('span', 'gs', g.items.length + ' 个会话 · ' + g.nq + ' 次提问'));
       meta.appendChild(el('span', 'gr', dateRange(g.first, g.last)));
@@ -603,7 +609,7 @@
   function clearQ() { qi.value = ''; st.q = ''; ftHide(); }
   function renderChips() {
     var C = [], box = $('chips');
-    if (st.src !== 'all') C.push(['来源', st.src === 'cc' ? 'Claude Code' : 'claude.ai', function () { st.src = 'all'; }, st.src]);
+    if (st.src !== 'all') C.push(['来源', SRC[st.src][0], function () { st.src = 'all'; }, st.src]);
     if (st.proj) C.push(['项目', null, function () { st.proj = null; }]);
     if (st.topic) C.push(['主题', st.topic === NOTOPIC ? '未分类' : st.topic, function () { st.topic = null; }]);
     if (st.month) C.push(['月份', st.month, function () { st.month = null; }]);
@@ -681,10 +687,11 @@
   var U = new URLSearchParams(location.search), fts = U.get('fts');
   if (/^(proj|topic|month)$/.test(U.get('group'))) st.group = U.get('group');
   if (/^(n|nq)$/.test(U.get('metric'))) st.metric = U.get('metric');
-  if (/^(cc|ai)$/.test(U.get('src'))) st.src = U.get('src');
+  if (/^(cc|ai|gpt)$/.test(U.get('src'))) st.src = U.get('src');
   ['proj', 'topic', 'month'].forEach(function (k) { if (U.get(k)) st[k] = U.get(k); });
   if (U.get('star')) st.star = true;
   if (fts) { qi.value = fts; st.q = fts.trim().toLowerCase(); }
+  ACT.forEach(function (k) { var lg = $('src-legend'); lg.appendChild(el('i', 'sw ' + k)); lg.appendChild(document.createTextNode(SRC[k][0])); });
   render();
   if (fts) fullText();
 })();

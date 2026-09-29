@@ -24,6 +24,7 @@
 | `claude_code_roots` | `["~/.claude/projects"]` | Claude Code 会话目录，按顺序读取，同一个会话 id 先读到的算数。WSL 下 `--init-config` 如果探测到 Windows 那边的 `/mnt/c/Users/<用户名>/.claude/projects` 也会加进来（会把 Windows 那边的全部会话一起收进来，不想要就删掉这一项）。`ssh-*` 开头的目录（远程会话的本机副本）照常读取，和别处重复的会话按“先读到的算数”去重。 |
 | `extra_backup_roots` | `[]` | 你自己另外备份的会话目录（格式同上）。只用来补上源目录里已经被 Claude Code 自动清理掉的会话；源目录里还在的会话不会被备份覆盖。 |
 | `claude_ai_zips` | `["~/Downloads/data-*-batch-*.zip"]` | claude.ai 官方导出包的位置（通配符）。WSL 下还会加 `/mnt/c/Users/<用户名>/Downloads/data-*-batch-*.zip`。可以同时放新旧多个导出包，会按消息合并（见下文）。 |
+| `chatgpt_zips` | `["~/Downloads/*.zip"]` | 要检查是不是 ChatGPT 官方导出包的 zip（通配符）。WSL 下还会加 `/mnt/c/Users/<用户名>/Downloads/*.zip`。**不看文件名，看内容**：zip 里有 `conversations.json`（或拆分的 `conversations-000.json`……），且会话带 `mapping` 才收；claude.ai 的包（会话带 `chat_messages`）和别的 zip 自动跳过。可以同时放新旧多个包，同一个对话以 `update_time` 最新的为准（见下文）。没有 ChatGPT 包就不生成 `chatgpt/` 页面。 |
 | `desktop_meta_globs` | 自动探测（见下表） | Claude 桌面应用的会话元数据，只读 5 个字段：会话 id、标题、标题来源（手动改的还是自动生成的）、是否星标、是否归档。用来让网页上的标题和星标与桌面应用一致。没有桌面应用就留空列表。 |
 | `redact` | `true` | 是否脱敏。开着时，读入数据的那一刻就把邮箱、手机号、密钥等换成占位符，最后还会把全部输出重扫一遍，有残留就不替换旧输出。规则和局限见 [PRIVACY.md](PRIVACY.md)。命令行 `--redact` / `--no-redact` 可以临时覆盖。 |
 | `redact_literals` | `[]` | 精确脱敏值：你知道的、正则抓不到的敏感字符串（比如某个推送服务的 key、内部项目代号、家庭住址的一部分）。出现就替换成 `[已脱敏]`，也会匹配它的 URL 编码写法。少于 6 个字符的值会被忽略（太短会误伤正常文字）。 |
@@ -41,6 +42,7 @@
   "claude_code_roots": ["~/.claude/projects"],
   "extra_backup_roots": [],
   "claude_ai_zips": ["~/Downloads/data-*-batch-*.zip"],
+  "chatgpt_zips": ["~/Downloads/*.zip"],
   "desktop_meta_globs": [],
   "redact": true,
   "redact_literals": [],
@@ -59,6 +61,7 @@
 |---|---|---|---|---|
 | Claude Code 会话 | `~/.claude/projects/` | `~/.claude/projects/` | `%USERPROFILE%\.claude\projects\` | WSL 里的 `~/.claude/projects/`，外加 Windows 侧的 `/mnt/c/Users/<用户名>/.claude/projects/`（如果你也在 Windows 上用 Claude Code） |
 | claude.ai 导出包 | `~/Downloads/` | `~/Downloads/` | `%USERPROFILE%\Downloads\` | `/mnt/c/Users/<用户名>/Downloads/` |
+| ChatGPT 导出包 | `~/Downloads/` | `~/Downloads/` | `%USERPROFILE%\Downloads\` | `/mnt/c/Users/<用户名>/Downloads/` |
 | 桌面应用元数据 | 官方没有 Linux 版；如装了非官方移植版，默认找 `~/.config/Claude/claude-code-sessions/` | `~/Library/Application Support/Claude/claude-code-sessions/` | 商店版（MSIX）：`%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\claude-code-sessions\`；安装包版：`%APPDATA%\Claude\claude-code-sessions\` | 同 Windows，路径前面换成 `/mnt/c/Users/<用户名>/` |
 
 说明：
@@ -85,12 +88,27 @@ claude.ai 网页上的对话不在本机，需要先从官方导出：
 
 官方说明：[Export your Claude data](https://support.claude.com/en/articles/9450526-export-your-claude-data)
 
+## ChatGPT 的数据怎么导出
+
+1. 在 ChatGPT 网页里：右上角头像 → **设置（Settings）→ 数据控制（Data controls）→ 导出数据（Export data）**，确认导出。
+2. 收到一封邮件，里面有下载链接（有有效期，过期就重新申请；下载需要登录同一个账号）。
+3. 下载得到一个 zip（文件名没有固定格式，通常以一串哈希开头），放进 `chatgpt_zips` 能匹配到的位置（默认是下载文件夹），不用解压、不用改名。
+
+几点说明：
+
+- 导出包里工具会读的只有：`conversations.json`（大账号拆成 `conversations-000.json`、`conversations-001.json`……按文件名排序合并；也可能外面包了一层 `{"conversations": [...]}`）、`user.json`（只用来读出邮箱和电话，加进精确脱敏表，本身不输出）、以及图片文件（根目录的 `file-XXX-原名.png`、`dalle-generations/`、`user-*/` 子目录）。`chat.html`、`message_feedback.json`、`shared_conversations.json` 等直接忽略。
+- 同一个对话出现在几个包里：按 `update_time` 取最新的那一份（整个对话替换，不按消息合并——ChatGPT 的对话是一棵树，混合两个版本可能拼出断裂的树）。包文件名以哈希开头，按名字排序不等于按时间，所以不靠顺序。
+- 语音对话只收文字转写，音频文件本身不收；图片按资源 id 到包里找，找不到的在页面上标注“导出包里没有这个文件”。
+- 输出在 `<out_dir>/chatgpt/`，见 [README](../README.md#chatgpt-历史)；格式细节见 [HOW-IT-WORKS.md](HOW-IT-WORKS.md#三chatgpt-导出包)。
+
+官方说明：[How do I export my ChatGPT history and data?](https://help.openai.com/en/articles/7260999-how-do-i-export-my-chatgpt-history-and-data)
+
 ## 命令行参数
 
 ```
 python3 claude_archive.py [--config 路径] [--out 目录] [--redact | --no-redact] [--allow-synced-output]
 python3 claude_archive.py --init-config      自动探测数据源，写默认配置，打印探测结果
-python3 claude_archive.py --doctor           只检查、不导出
+python3 claude_archive.py --doctor           只检查、不导出（含：找到几个 ChatGPT 包、多少段对话）
 python3 claude_archive.py --selftest         脱敏规则和分支树自检
 python3 claude_archive.py --dump-prompts 目录  导出还没有小标题的提问（给 AI 写小标题用）
 python3 claude_archive.py --dump-convs 目录    导出还没有主题标签的会话
@@ -104,6 +122,7 @@ python3 claude_archive.py --merge-topics 文件…  把 AI 打好的主题标签
 
 - `--dump-prompts 目录` 写出 `目录/prompts-00.jsonl`、`prompts-01.jsonl`……，每行 `{"id": "提问id", "t": "提问原文前 400 字"}`。终端打印的“待总结 N 条”就是还没有导航小标题的提问数。
 - `--merge-titles` 读的文件是一个 JSON 对象：`{"提问id": "小标题", …}`，小标题建议不超过 12 个字。
+- `--dump-prompts` 也会导出 ChatGPT 的提问（`id` 是消息 id）；`--dump-convs` 同时读 `data.js` 和 `chatgpt/data.js`，ChatGPT 会话的 key 是 `gpt-<对话id>`，`--merge-topics` 时照这个 key 写。
 - `--dump-convs 目录` 读上次导出的 `data.js`，写出 `目录/in-00.jsonl`……，每行 `{"id", "src", "t", "proj", "month", "q", "as"}`，并打印当前主题表。
 - `--merge-topics` 读的文件是一个 JSON 对象：`{"会话id": {"t": ["主题1", "主题2"], "s": "一句话总结"}, …}`；可以带 `"_topics": [{"name": "主题名", "desc": "说明"}, …]` 设定或替换主题表，也可以只含 `_topics`。
 

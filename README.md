@@ -23,6 +23,7 @@
 ## 功能
 
 - **两个来源合在一起**：本机 `~/.claude/projects` 下的 Claude Code 会话（含子 agent、workflow），和 claude.ai 设置里导出的数据包。Windows + WSL 两边的会话也能一起收。
+- **ChatGPT 历史（可选）**：ChatGPT 官方导出包也能收，单独生成一个页面 `chatgpt/index.html`（和 Claude 存档互相有链接），同样可筛选、全文搜索，代码、执行结果、思考、Canvas 文档、图片都保留。见下面“ChatGPT 历史”一节。
 - **首页**：按项目 / 主题 / 月份分组，按来源、星标、项目、主题筛选；每月会话数柱状图、每天活跃热力图；输入即过滤标题，回车搜全文。
 - **全文搜索**：搜所有提问和回答，点结果直接跳到原文位置。
 - **会话页**：完整消息流；思考过程、工具调用、上下文压缩摘要、claude.ai 的分支都可以折叠展开；右侧提问导航条，`j` / `k` 键跳到下一个 / 上一个提问。
@@ -74,6 +75,31 @@ git clone https://github.com/jackdhch/claude-chat-archive.git; cd claude-chat-ar
 
 **想收录 claude.ai 的对话？** 先在 claude.ai 的 设置 → 隐私（Privacy）→ 导出数据（Export data）申请导出，邮件里的链接 24 小时内有效，把下载的 `data-…-batch-0000.zip` 放在下载文件夹（不用解压），再运行一次导出即可。详见 [docs/CONFIG.md](docs/CONFIG.md#claudeai-的数据怎么导出)。
 
+## ChatGPT 历史
+
+想把 ChatGPT 网页上的对话也存下来：
+
+1. 打开 ChatGPT 网页 → 点右上角头像 → **设置（Settings）→ 数据控制（Data controls）→ 导出数据（Export data）**，确认导出。
+2. 过一会儿收到一封邮件，点里面的链接下载 zip（链接有有效期，过期就重新申请；下载要登录同一个账号）。
+3. 把 zip 放进下载文件夹（不用解压、不用改名）。再运行一次导出就行——配置项 `chatgpt_zips` 默认就是 `~/Downloads/*.zip`（WSL 下还会加上 Windows 的下载文件夹），**工具按内容认包**：zip 里有 `conversations.json`（大账号会拆成 `conversations-000.json`……）且对话带 `mapping` 才算 ChatGPT 的包，claude.ai 的包和别的 zip 会自动跳过。
+
+结果单独放在 `<输出目录>/chatgpt/`：
+
+- `chatgpt/index.html`：ChatGPT 首页（标题“ChatGPT 对话存档”）。样式和脚本用的是上一级的同一套，来源色是洋红。按“项目”分组时，自定义 GPT 算一个项目，普通对话归“普通对话”。首页顶部有“Claude 存档 / ChatGPT 存档”互相跳转的链接。
+- `chatgpt/s/gpt-<id>.html`：会话页。代码、执行结果、思考做成折叠条；Canvas 文档另存在 `files/gpt-<id>/`；图片放 `chatgpt/img/`；你在设置里写的自定义指令在页首折叠显示一次；“编辑后重发”和“重新生成”留下的旧分支折叠挂在原位。
+- `docs/gpt/`、`docs/index/gpt-YYYY-MM.md`：给 Claude 读的分块 Markdown，`docs/README.md` 里有说明。
+- 没有 ChatGPT 包时不会生成 `chatgpt/`，Claude 首页也不显示那个链接。
+
+隐藏的内容（系统提示词、记忆工具、联网搜索的内部数据、空消息等，ChatGPT 网页本来也不显示）不会出现在页面里，但会在 `report.txt` 里按原因计数。`--doctor` 会显示找到几个 ChatGPT 包、多少段对话。
+
+<table><tr>
+<td><img src="docs/screenshots/chatgpt-home-light.png" alt="ChatGPT 首页（浅色）"></td>
+<td><img src="docs/screenshots/chatgpt-session-dark.png" alt="ChatGPT 会话页（深色）：折叠的代码、执行结果、思考"></td>
+</tr><tr>
+<td align="center">ChatGPT 首页（浅色）</td>
+<td align="center">会话页（深色）：代码、执行结果、思考可折叠</td>
+</tr></table>
+
 ## 手动用法
 
 不想用安装脚本也行，直接运行（没有配置文件时自动探测数据源、使用默认值）：
@@ -110,11 +136,12 @@ python3 claude_archive.py                 # 导出（几百个会话大约几分
   search.js           全文搜索索引（含全部对话正文）
   app.js style.css theme.js nav.js   网页脚本和样式
   s/                  每个会话一页（子 agent、workflow 在 s/cc-<会话>/ 下）
-  files/              claude.ai 里生成的文件（还原出的最终版）
+  files/              claude.ai 里生成的文件（还原出的最终版）；files/gpt-<对话>/ 是 ChatGPT 的 Canvas 文档
   img/                你粘贴过的截图（只进网页，不进文档）
   docs/README.md      给 Claude 读的文档入口
-  docs/cc/ docs/ai/   Claude Code / claude.ai 对话正文（分块 Markdown）
-  docs/index/         按月索引
+  docs/cc/ docs/ai/ docs/gpt/   Claude Code / claude.ai / ChatGPT 对话正文（分块 Markdown）
+  docs/index/         按月索引（cc-、ai-、gpt- 三种）
+  chatgpt/            ChatGPT 存档（有 ChatGPT 导出包时才有）：index.html、data.js、search.js、s/、img/
   docs/profile.md     记忆文件汇总
   stats.json          统计数字（下次导出会拿来比，数量变少就报警）
   report.txt          统计与检查结果（只有数字，没有对话内容）
@@ -170,6 +197,9 @@ Claude Code 默认会删除 30 天前的会话记录，已删的找不回来。�
 
 **Q：claude.ai 的对话没出现？**
 先跑 `--doctor` 看导出包有没有被找到。导出包要放在 `claude_ai_zips` 能匹配的位置（默认是下载文件夹），文件名形如 `data-…-batch-0000.zip`；拆成多个包时要全部下载，缺号会报错。
+
+**Q：ChatGPT 的对话没出现？**
+跑 `--doctor`，看“找到 ChatGPT 导出包 N 个”。导出包要放在 `chatgpt_zips` 能匹配的位置（默认是下载文件夹里任何 `*.zip`），而且里面要有 `conversations.json`。ChatGPT 页面在 `chatgpt/index.html`，不在根目录的首页里（首页顶部有链接）。
 
 **Q：检查不通过（退出码 1）怎么办？**
 旧输出没被动过，新产物留在 `…output.new` 里。看终端输出或 `…output.new/report.txt` 最后的“检查失败”一节。常见原因是脱敏复扫发现残留（说明某种写法没被规则覆盖，欢迎提 issue，**别贴原文**，只贴规则名）。

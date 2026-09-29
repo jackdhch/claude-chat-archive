@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Claude 对话存档</title>
-<link rel="stylesheet" href="style.css">
-<script src="theme.js"></script>
+<title>{{TITLE}}</title>
+<link rel="stylesheet" href="{{UP}}style.css">
+<script src="{{UP}}theme.js"></script>
 </head>
 <body class="home">
 <aside class="side" aria-label="筛选">
   <div class="brand">
-    <span class="brand-name">Claude 对话存档</span>
+    <span class="brand-name">{{TITLE}}</span>
     <span class="brand-sub">本地离线 · 仅限本机</span>
     <span id="theme-slot"></span>
   </div>
@@ -19,13 +19,13 @@
   <section class="facet"><h2>项目</h2><div id="f-proj"></div></section>
   <section class="facet"><h2>主题</h2><div id="f-topic"></div></section>
   <div class="side-foot">
-    <a href="profile.html">Claude 记忆 / 用户画像</a>
+    {{FOOT}}
   </div>
 </aside>
 
 <main class="main">
   <header class="top">
-    <h1>全部会话</h1>
+    {{SWITCH}}<h1>全部会话</h1>
     <p class="sub">{{GEN}}</p>
   </header>
 
@@ -33,7 +33,7 @@
     <div class="tiles" id="tiles"></div>
     <div class="charts">
       <figure class="chart">
-        <figcaption><span id="m-title">每月会话数</span><span class="seg sm" id="metric" role="group" aria-label="柱子统计什么"><button type="button" data-m="n">会话数</button><button type="button" data-m="nq">提问数</button></span><span class="legend"><i class="sw cc"></i>Claude Code<i class="sw ai"></i>claude.ai</span></figcaption>
+        <figcaption><span id="m-title">每月会话数</span><span class="seg sm" id="metric" role="group" aria-label="柱子统计什么"><button type="button" data-m="n">会话数</button><button type="button" data-m="nq">提问数</button></span><span class="legend" id="src-legend"></span></figcaption>
         <div id="months"></div>
         <details class="dtable"><summary>按月数据表</summary><div id="months-table"></div></details>
       </figure>
@@ -74,6 +74,6 @@
 <div id="tip" class="tip" role="tooltip" hidden></div>
 
 <script src="data.js"></script>
-<script src="app.js"></script>
+<script src="{{UP}}app.js"></script>
 </body>
 </html>

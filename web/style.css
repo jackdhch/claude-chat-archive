@@ -17,6 +17,7 @@
   --u-line: #e1e4f7;
   --code: #4b56d2;      /* 图表：Claude Code（已过 dataviz 校验） */
   --chat: #d86a30;      /* 图表：claude.ai */
+  --gpt: #b8398f;       /* 图表：ChatGPT（洋红；与 Code 靛蓝、Chat 橙三色 all-pairs 过 dataviz 校验，深色 #d0509f 同） */
   --heat-0: #ececf0;    /* 热力格空日 */
   --h1: #66c3a4; --h2: #27a180; --h3: #007c60; --h4: #005742;  /* 热力格 1–2 · 3–5 · 6–9 · 10+（青绿，和 Code/Chat 都不同） */
   --mark: #fff0b8;      /* 搜索高亮 */
@@ -34,7 +35,7 @@
     --fg: #e6e7ec; --fg-2: #a9acb8; --mut: #7a7d8b;
     --acc: #8b94f1; --acc-ink: #a5acf6; --acc-wash: #242749;
     --u-bg: #1b1d2b; --u-line: #2b2e48;
-    --code: #7f89ee; --chat: #d9692f; --heat-0: #212227; --mark: #5a4a12;
+    --code: #7f89ee; --chat: #d9692f; --gpt: #d0509f; --heat-0: #212227; --mark: #5a4a12;
     --h1: #145a47; --h2: #198166; --h3: #37ac8a; --h4: #6cd5b3;
     --shadow: 0 12px 34px rgba(0, 0, 0, .5), 0 1px 3px rgba(0, 0, 0, .4);
     --star: #e0a52a; --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
@@ -47,7 +48,7 @@
   --fg: #e6e7ec; --fg-2: #a9acb8; --mut: #7a7d8b;
   --acc: #8b94f1; --acc-ink: #a5acf6; --acc-wash: #242749;
   --u-bg: #1b1d2b; --u-line: #2b2e48;
-  --code: #7f89ee; --chat: #d9692f; --heat-0: #212227; --mark: #5a4a12;
+  --code: #7f89ee; --chat: #d9692f; --gpt: #d0509f; --heat-0: #212227; --mark: #5a4a12;
   --h1: #145a47; --h2: #198166; --h3: #37ac8a; --h4: #6cd5b3;
   --shadow: 0 12px 34px rgba(0, 0, 0, .5), 0 1px 3px rgba(0, 0, 0, .4);
   --star: #e0a52a; --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
@@ -69,6 +70,7 @@ img { max-width: 100%; height: auto; }
 .sw { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--mut); }
 .sw.cc { background: var(--code); }
 .sw.ai { background: var(--chat); }
+.sw.gpt { background: var(--gpt); }
 .pd { font: .84em var(--mono); color: var(--mut); font-weight: 400; letter-spacing: 0; }
 .pn { display: inline-block; max-width: 100%; }  /* 项目名里的日期 */
 .theme-btn { border: 1px solid var(--line-2); background: var(--surface); color: var(--fg-2); border-radius: 7px; padding: 3px 10px; font-size: 12.5px; cursor: pointer; }
@@ -131,6 +133,7 @@ body.home { display: grid; grid-template-columns: 252px minmax(0, 1fr); min-heig
 .viz .axis { stroke: var(--line-2); stroke-width: 1; }
 .viz .m-cc { fill: var(--code); }
 .viz .m-ai { fill: var(--chat); }
+.viz .m-gpt { fill: var(--gpt); }
 .viz .hit { fill: var(--fg); fill-opacity: 0; cursor: pointer; }
 .viz .hit:hover, .viz .hit:focus-visible { fill-opacity: .045; outline: none; }
 .charts > .chart:first-child { max-width: 480px; }
@@ -164,6 +167,7 @@ body.home { display: grid; grid-template-columns: 252px minmax(0, 1fr); min-heig
 .tip .key { width: 10px; height: 2px; border-radius: 1px; background: var(--fg-2); }
 .tip .key.cc { background: var(--code); }
 .tip .key.ai { background: var(--chat); }
+.tip .key.gpt { background: var(--gpt); }
 .tip .key.none { background: none; }
 .tip-f { margin-top: 4px; color: var(--mut); font-size: 11.5px; }
 
@@ -209,6 +213,7 @@ body.home { display: grid; grid-template-columns: 252px minmax(0, 1fr); min-heig
 .gbar i { display: block; height: 100%; flex-basis: 0; }
 .gbar .cc { background: var(--code); }
 .gbar .ai { background: var(--chat); }
+.gbar .gpt { background: var(--gpt); }
 .gs, .gr { font-size: 12.5px; color: var(--mut); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .gr { font-size: 12px; }
 .grp.closed .rows { display: none; }
@@ -298,6 +303,7 @@ body:not(.home) > p.mut { margin: 0 0 18px; font-size: 12.5px; line-height: 1.7;
 .dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--mut); }
 .dot.cc { background: var(--code); }
 .dot.ai { background: var(--chat); }
+.dot.gpt { background: var(--gpt); }
 
 /* 页头概要卡 */
 .facts { display: flex; flex-wrap: wrap; width: fit-content; max-width: 100%; margin: 16px 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
@@ -432,3 +438,9 @@ body:not(.home) > ul:not(.tags) { padding-left: 1.3em; font-size: 14px; }
   #rail { display: none; }
   #qnav { right: 10px; bottom: 14px; }
 }
+
+/* 首页顶部：Claude 存档 / ChatGPT 存档 互相跳转 */
+.switch { margin: 0 0 6px; font-size: 13px; color: var(--mut); }
+.switch b { color: var(--fg); font-weight: 650; }
+.switch a { color: var(--acc-ink); text-decoration: none; }
+.switch a:hover { text-decoration: underline; }

@@ -4,6 +4,7 @@
 所有人名、路径、邮箱、手机号、身份证号、Bark key 都是编的；身份证号只是校验位算对了。
 预期值（会话数、消息数……）按下面每一行的设计标注算出来，写进 fixtures/expected.json。"""
 import base64, io, json, os, shutil, struct, uuid, zipfile, zlib
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -30,15 +31,17 @@ SECRETS = {
     'bark_key': 'FakeBarkKey9x8y7z6w',            # 写成 https://api.day.app/<key>/标题
     'literal_cfg': 'ZebraLiteralCfg7777',          # 配置 redact_literals 里的值，别的规则抓不到
     'literal_file': 'OtterLiteralFile8899',        # 配置 redact_literal_files 指向的文件里的值
+    'gpt_user_email': 'gpt.owner@example.net',     # ChatGPT 导出包 user.json 里的邮箱（也出现在正文里）
+    'gpt_user_phone': '+442079460123',             # user.json 的 phone_number：非国内号码，只有精确脱敏表抓得到
 }
 SENSITIVE_TEXT = (f"我的邮箱 {SECRETS['email']}，备用 {SECRETS['user_email']}，手机{SECRETS['phone']}，"
                   f"另一个号 +86 {SECRETS['user_phone']}，身份证{SECRETS['idcard']}，卡号 {SECRETS['card']}。"
                   f"推送用 curl https://api.day.app/{SECRETS['bark_key']}/测试 ；内部代号 {SECRETS['literal_cfg']} 和 {SECRETS['literal_file']}。")
 
-def png_1x1():
+def png_1x1(px=b'\xff\x80\x00'):
     def chunk(t, d): return struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff)
     return (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', 1, 1, 8, 2, 0, 0, 0))
-            + chunk(b'IDAT', zlib.compress(b'\x00\xff\x80\x00')) + chunk(b'IEND', b''))
+            + chunk(b'IDAT', zlib.compress(b'\x00' + px)) + chunk(b'IEND', b''))
 PNG_B64 = base64.b64encode(png_1x1()).decode()
 
 # ───────────── Claude Code 行构造 ─────────────
@@ -277,6 +280,119 @@ def build_ai():
             z.writestr(zi, J(o))
     return convs
 
+# ───────────── ChatGPT 导出包 ─────────────
+# 两个包：A 是单文件 conversations.json；B 拆成 conversations-000/001.json（001 外面还包了一层 {"conversations": [...]}）。
+# 同一个对话（gpt-dup）两个包里都有，新版在 B 里、旧版在 A 里；包名开头是哈希，按名字排序 B 在 A 前面，所以只有认 update_time 才对得上。
+GT0 = datetime(2026, 3, 5, 10, 0, tzinfo=timezone.utc)
+def gt(m): return (GT0 + timedelta(minutes=m)).timestamp()
+GREG = {}   # (对话键, 节点名) → {'kind': shown/ctx/null/hid:原因, 'role': ..., 'final': 是否最终留下的版本}
+GCUR = {}   # 对话键 → current_node 的节点名
+class GConv:
+    def __init__(s, key, final=True): s.key, s.final, s.map, s.n = key, final, {}, 0
+    def nid(s, name): return U('gpt-' + s.key + name)
+    def add(s, name, parent, role=None, content=None, t=0, kind='shown', nm=None, to='all', meta=None, status=True):
+        i = s.nid(name); s.map[i] = {'id': i, 'message': None, 'parent': s.nid(parent) if parent else None, 'children': []}
+        if parent: s.map[s.nid(parent)]['children'].append(i)
+        if role:
+            m = {'id': i, 'author': {'role': role, 'name': nm, 'metadata': {}}, 'create_time': gt(t), 'update_time': None, 'content': content,
+                 'end_turn': True, 'recipient': to, 'metadata': meta or {}}
+            if status: m.update(status='finished_successfully', weight=1.0)
+            s.map[i]['message'] = m
+        else: kind = 'null'
+        GREG[(s.key, name)] = {'kind': kind, 'role': role, 'final': s.final}; return name
+    def out(s, cur, **kw):
+        GCUR[s.key] = cur
+        return dict({'title': None, 'create_time': gt(0), 'update_time': gt(60), 'mapping': s.map, 'moderation_results': [], 'current_node': s.nid(cur), 'conversation_id': s.nid('') , 'id': s.nid(''),
+                     'is_archived': False, 'is_starred': False, 'gizmo_id': None, 'default_model_slug': 'gpt-5', 'safe_urls': [], 'blocked_urls': []}, **kw)
+GID = {k: U('gpt-' + k + '') for k in ('full', 'plain', 'dup', 'split')}
+def T_(x): return {'content_type': 'text', 'parts': [x]}
+
+def build_gpt():
+    # G1 功能全集：隐藏消息、自定义指令、code+执行结果、思考、引用、Canvas、未知类型、多模态图片、分支（编辑重发 + 重新生成，current_node 指向不是最新的那条）
+    g = GConv('full'); M5 = {'model_slug': 'gpt-5-thinking'}
+    g.add('root', None)                                                                    # message 为 null 的根节点
+    g.add('sys1', 'root', 'system', T_('HIDDEN-SYS-MARK You are ChatGPT.'), 1, 'hid:系统消息')
+    g.add('ctx', 'sys1', 'system', {'content_type': 'user_editable_context', 'user_profile': '', 'user_instructions': ''}, 2, 'ctx',
+          meta={'is_user_system_message': True, 'is_visually_hidden_from_conversation': True,
+                'user_context_message_data': {'about_user_message': 'CUSTOM-INSTR-MARK 我是演示用户，常用 Python。', 'about_model_message': '回答要简短。'}})
+    g.add('u1', 'ctx', 'user', T_('GPT-Q1 帮我算一下 1 到 10 的平方和，并把结果写进笔记。我的账号邮箱 ' + SECRETS['gpt_user_email'] + '，电话 ' + SECRETS['gpt_user_phone'] + '。' + SENSITIVE_TEXT), 3, meta={'attachments': []}, status=False)
+    g.add('th1', 'u1', 'assistant', {'content_type': 'thoughts', 'thoughts': [{'summary': '心算验证', 'content': '1+4+9+16+25+36+49+64+81+100=385', 'chunks': [], 'finished': True}]}, 4, meta=M5)
+    g.add('rc1', 'th1', 'assistant', {'content_type': 'reasoning_recap', 'content': '已思考 8 秒'}, 5, meta=M5)
+    g.add('c1', 'rc1', 'assistant', {'content_type': 'code', 'language': 'python', 'text': 'print(sum(i*i for i in range(1, 11)))  # 测试卡号 ' + SECRETS['card']}, 6, to='python', meta=M5)
+    g.add('o1', 'c1', 'tool', {'content_type': 'execution_output', 'text': '385'}, 7, nm='python')
+    g.add('a1', 'o1', 'assistant', T_('GPT-A1 平方和是 385。'), 8, meta=M5, status=False)
+    g.add('hb1', 'a1', 'tool', T_('HIDDEN-BIO-MARK memory update'), 9, 'hid:工具内部(bio/web.run/web.search)', nm='bio')
+    g.add('hw1', 'hb1', 'tool', T_('HIDDEN-WEBRUN-MARK'), 10, 'hid:工具内部(bio/web.run/web.search)', nm='web.run')
+    g.add('hbr', 'hw1', 'tool', T_('HIDDEN-BROWSER-MARK'), 11, 'hid:浏览器内部(非引用)', nm='browser')
+    g.add('hs', 'hbr', 'tool', {'content_type': 'sonic_webpage', 'url': 'https://example.com', 'title': 'HIDDEN-SONIC-MARK'}, 12, 'hid:内容类型:sonic_webpage', nm='web')
+    g.add('he', 'hs', 'tool', {'content_type': 'system_error', 'name': 'HIDDEN-ERR-MARK', 'text': 'boom'}, 13, 'hid:内容类型:system_error', nm='web')
+    g.add('hd', 'he', 'tool', {'content_type': 'tether_browsing_display', 'result': 'HIDDEN-DISPLAY-MARK', 'summary': None}, 14, 'hid:内容类型:tether_browsing_display', nm='web')
+    g.add('hv', 'hd', 'assistant', T_('HIDDEN-VIS-MARK'), 15, 'hid:视觉隐藏', meta={'is_visually_hidden_from_conversation': True})
+    g.add('hm', 'hv', 'assistant', {'content_type': 'text', 'parts': ['']}, 16, 'hid:空消息')
+    g.add('q1', 'hm', 'tool', {'content_type': 'tether_quote', 'url': 'https://example.com/gil', 'domain': 'example.com', 'text': 'QUOTE-MARK 引用的一段网页文字', 'title': '示例页面'}, 17, nm='browser')
+    g.add('cv', 'q1', 'assistant', {'content_type': 'code', 'language': 'json', 'text': json.dumps({'name': '学习计划', 'type': 'document', 'content': '# 学习计划\nCANVAS-MARK 第一周先复习平方和。' + SENSITIVE_TEXT}, ensure_ascii=False)},
+          18, to='canmore.create_textdoc', meta=M5)
+    g.add('uw', 'cv', 'assistant', {'content_type': 'weird_type', 'foo': 'UNKNOWN-TYPE-MARK'}, 19, meta=M5)
+    g.add('u2', 'uw', 'user', T_('GPT-OLD-Q 旧问法：再画一张图'), 20)                        # 被编辑重发替换掉的旧问法
+    g.add('a4old', 'u2', 'assistant', T_('GPT-OLD-ANSWER 旧回答'), 21, meta=M5)
+    g.add('u2b', 'uw', 'user', {'content_type': 'multimodal_text', 'parts': ['GPT-Q2 请看这张图', {'content_type': 'image_asset_pointer', 'asset_pointer': 'file-service://file-FAKEIMG1', 'size_bytes': 100, 'width': 1, 'height': 1}]}, 30,
+          meta={'attachments': [{'id': 'file-FAKEIMG1', 'name': 'shot.png', 'mime_type': 'image/png', 'size': 100}, {'id': 'file-FAKEDOC1', 'name': 'notes.pdf', 'mime_type': 'application/pdf', 'size': 123}]})
+    g.add('a5', 'u2b', 'assistant', T_('GPT-A2 收到图片和文档。'), 31, meta=M5)
+    g.add('a5b', 'u2b', 'assistant', T_('GPT-A2-REGEN 重新生成的版本'), 40, meta={'model_slug': 'gpt-5'})   # 时间最晚，但 current_node 指向 a5
+    c1 = g.out('a5', title='ChatGPT 功能全集', update_time=gt(45), is_starred=False)
+    # G2 自定义 GPT（gizmo）、title 为 null、create/update_time 为 null、消息没有 status/weight、assistant 带 dalle 生成图
+    g = GConv('plain')
+    g.add('root', None)
+    g.add('u', 'root', 'user', T_('GPT-G2-Q 用自定义 GPT 问：这份合同怎么理解？内部代号 ' + SECRETS['literal_cfg']), 100, status=False)
+    g.add('a', 'u', 'assistant', {'content_type': 'multimodal_text', 'parts': [{'content_type': 'image_asset_pointer', 'asset_pointer': 'file-service://file-FAKEDALLE1'}, 'GPT-G2-A 图已生成。']}, 101, status=False)
+    c2 = g.out('a', title=None, create_time=None, update_time=None, gizmo_id='g-p-fakegizmo123456', is_starred=True)
+    # G3 同一个对话的旧版（在包 A）和新版（在包 B）：新版换了回答、又追问了一轮
+    g = GConv('dup-old', final=False); g.key = 'dup'
+    g.add('root', None); g.add('u', 'root', 'user', T_('GPT-DUP-Q 这是同时出现在两个导出包里的对话'), 200)
+    g.add('a', 'u', 'assistant', T_('DUP-OLD-REPLY 旧版回答'), 201)
+    c3o = g.out('a', title='DUP 会话', create_time=gt(200), update_time=gt(210))
+    g = GConv('dup')
+    g.add('root', None); g.add('u', 'root', 'user', T_('GPT-DUP-Q 这是同时出现在两个导出包里的对话'), 200)
+    g.add('a2', 'u', 'assistant', T_('DUP-NEW-REPLY 新版回答'), 202)
+    g.add('u3', 'a2', 'user', T_('GPT-DUP-Q2 后来又追问了一句'), 203); g.add('a3', 'u3', 'assistant', T_('DUP-NEW-REPLY-2 追问的回答'), 204)
+    c3n = g.out('a3', title='DUP 会话', create_time=gt(200), update_time=gt(300))
+    # G4 在拆分文件 conversations-001.json 里（外面包了一层），只有 id 没有 conversation_id，已归档
+    g = GConv('split')
+    g.add('root', None); g.add('u', 'root', 'user', T_('GPT-SPLIT-Q 拆分文件里的问题'), 400); g.add('a', 'u', 'assistant', T_('GPT-SPLIT-A 拆分文件里的回答'), 401)
+    c4 = g.out('a', title='Split 文件里的对话', create_time=gt(400), update_time=gt(410), is_archived=True); del c4['conversation_id']
+    user = {'id': 'user-FAKE', 'email': SECRETS['gpt_user_email'], 'chatgpt_plus_user': False, 'phone_number': SECRETS['gpt_user_phone']}
+    zd = os.path.join(FX, 'Downloads'); os.makedirs(zd, exist_ok=True)
+    J = lambda o: json.dumps(o, ensure_ascii=False, indent=1)
+    def wz(name, files):
+        with zipfile.ZipFile(os.path.join(zd, name), 'w', zipfile.ZIP_DEFLATED) as z:
+            for n, b in files:
+                zi = zipfile.ZipInfo(n, (2026, 3, 10, 0, 0, 0)); zi.compress_type = zipfile.ZIP_DEFLATED
+                z.writestr(zi, b if isinstance(b, bytes) else J(b))
+    wz('7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b-2026-03-10-09-00-00-1a2b3c4d.zip',
+       [('conversations.json', [c1, c2, c3o]), ('user.json', user), ('chat.html', '<html><body>fake chat.html</body></html>'.encode()), ('message_feedback.json', []), ('shared_conversations.json', []),
+        ('file-FAKEIMG1-original.png', png_1x1()), ('dalle-generations/file-FAKEDALLE1-0000.png', png_1x1(b'\x10\x80\xf0'))])
+    wz('3c1f0b7a9d2e4f68a5b1c0d9e8f7a6b5c4d3e2f1-2026-03-20-10-00-00-9f8e7d6c.zip',
+       [('conversations-000.json', [c3n]), ('conversations-001.json', {'conversations': [c4]}), ('user.json', user), ('chat.html', '<html><body>fake chat.html</body></html>'.encode())])
+    return [c1, c2, c3n, c4]
+
+def gpt_expected(gconvs):
+    fin = {k: v for k, v in GREG.items() if v['final']}
+    shown = {k: v for k, v in fin.items() if v['kind'] == 'shown'}
+    main_shown = 0
+    for c in gconvs:   # 主线：从 current_node 沿 parent 走回根
+        key = next(k for k in GCUR if c['id'] == U('gpt-' + k)); mp = c['mapping']; i = c['current_node']
+        while i:
+            name = next(n for (kk, n) in GREG if kk == key and U('gpt-' + key + n) == i); main_shown += GREG[(key, name)]['kind'] == 'shown'; i = mp[i]['parent']
+    hid = Counter(v['kind'][4:] for v in fin.values() if v['kind'].startswith('hid:'))
+    return {
+        'gpt_zips': 2, 'gpt_convs': len(gconvs), 'gpt_raw': 5,
+        'gpt_nodes': len(fin), 'gpt_null': sum(v['kind'] == 'null' for v in fin.values()), 'gpt_shown': len(shown), 'gpt_prompts': sum(v['role'] == 'user' for v in shown.values()),
+        'gpt_main_shown': main_shown, 'gpt_hidden': dict(hid), 'gpt_hidden_total': sum(hid.values()), 'gpt_ctx': sum(v['kind'] == 'ctx' for v in fin.values()),
+        'gpt_branches': {GID['full']: 2}, 'gpt_files': {GID['full']: 1}, 'gpt_ids': GID,
+        'gpt_must_contain': ['GPT-A2 ', 'GPT-A2-REGEN', 'GPT-OLD-ANSWER', 'CANVAS-MARK', 'QUOTE-MARK', 'UNKNOWN-TYPE-MARK', 'DUP-NEW-REPLY-2', 'GPT-SPLIT-A', '385', '心算验证', '已思考 8 秒'],
+        'gpt_must_not': ['DUP-OLD-REPLY', 'HIDDEN-SYS-MARK', 'HIDDEN-BIO-MARK', 'HIDDEN-WEBRUN-MARK', 'HIDDEN-BROWSER-MARK', 'HIDDEN-SONIC-MARK', 'HIDDEN-ERR-MARK', 'HIDDEN-DISPLAY-MARK', 'HIDDEN-VIS-MARK'],
+    }
+
 def expected(convs):
     shown = {u: v for u, v in REG.items() if v['k'] != 'drop'}
     main_items = {u: v for u, v in shown.items() if v['main']}
@@ -304,8 +420,8 @@ def expected(convs):
 if __name__ == '__main__':
     if os.path.exists(FX): shutil.rmtree(FX)
     os.makedirs(FX)
-    build_cc(); convs = build_ai()
-    json.dump(expected(convs), open(os.path.join(FX, 'expected.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+    build_cc(); convs = build_ai(); gconvs = build_gpt()
+    json.dump(dict(expected(convs), **gpt_expected(gconvs)), open(os.path.join(FX, 'expected.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
     # 给 redact_literal_files 用的文件
     open(os.path.join(FX, 'literals.txt'), 'w', encoding='utf-8').write(SECRETS['literal_file'] + '\n')
     size = sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(FX) for f in fs)
