@@ -227,6 +227,33 @@ ls "$T/dump2"/in-*.jsonl >/dev/null 2>&1 && ! grep -q "cc-$SID1" "$T/dump2"/in-*
 grep -q '"id": "gpt-' "$T/dump2"/in-*.jsonl && ! grep -q "gpt-$GID" "$T/dump2"/in-*.jsonl && ok "dump-convs 含 ChatGPT 会话（key 是 gpt-<id>），已打标签的跳过" || bad "dump-convs 的 ChatGPT 会话不对"
 [ -z "$(ls -A "$T/xdg/data/claude-archive" 2>/dev/null | grep -v -E '^(titles|topics)\.json$')" ] && [ -f "$T/xdg/data/claude-archive/titles.json" ] && ok "缓存在 XDG_DATA_HOME/claude-archive/" || bad "缓存位置不对"
 
+echo "== 6b. claude.ai 对话转成 Claude Code 会话"
+AP="$HOME/.claude/projects/$(printf '%s' "$HOME/claude-ai-chats" | sed 's/[^A-Za-z0-9]/-/g')"; nimp() { ls "$AP"/*.jsonl 2>/dev/null | wc -l | tr -d ' '; }
+expect_code 0 "--import-claude-ai（只列出）" --config "$CFG" --import-claude-ai
+NI=$(sed -n 's/.*要转换 \([0-9]*\) 个.*/\1/p' "$T/last.log")
+[ "$(nimp)" = 0 ] && [ ! -e "$HOME/claude-ai-chats" ] && ok "不加 --write 不写文件" || bad "不加 --write 也写了文件"
+[ "${NI:-0}" -gt 0 ] && ok "列出 $NI 个要转换的对话" || bad "没列出要转换的对话"
+expect_code 0 "--import-claude-ai --write" --config "$CFG" --import-claude-ai --write
+[ "$(nimp)" = "$NI" ] && [ -d "$HOME/claude-ai-chats" ] && ok "写出 $NI 个会话文件，建了 ~/claude-ai-chats" || bad "会话文件数不对：$(nimp)，期望 $NI"
+"$PY" - "$AP" "$FX/expected.json" "$HOME/claude-ai-chats" <<'PY' && ok "一问一答交替、前后衔接、首问末答、带 [claude.ai] 标题、不脱敏、分支不带" || bad "转换出的会话格式不对"
+import glob, json, sys
+E = json.load(open(sys.argv[2], encoding='utf-8')); fs = glob.glob(sys.argv[1] + '/*.jsonl'); allx = ''
+for f in fs:
+    rs = [json.loads(l) for l in open(f, encoding='utf-8')]; ms = [r for r in rs if r['type'] in ('user', 'assistant')]
+    assert ms[0]['type'] == 'user' and ms[-1]['type'] == 'assistant', f
+    assert all(a['type'] != b['type'] and b['parentUuid'] == a['uuid'] for a, b in zip(ms, ms[1:])), f
+    assert ms[0]['parentUuid'] is None and all(r['cwd'] == sys.argv[3] and r['sessionId'] == f.rsplit('/', 1)[1][:-6] for r in ms), f
+    assert rs[-1]['type'] == 'custom-title' and rs[-1]['customTitle'].startswith('[claude.ai] '), rs[-1]
+    allx += json.dumps(rs, ensure_ascii=False)
+assert E['placeholder'] not in allx and '[已脱敏]' not in allx and E['secrets']['email'] in allx, '被脱敏了'   # 配置开着脱敏，转换也必须是原文
+assert 'BRANCH-EDIT-Q' in allx and '重新生成' in allx and 'BRANCH-OLD-Q' not in allx and '第一版' not in allx, '主线/分支不对'
+PY
+expect_code 0 "再转一次" --config "$CFG" --import-claude-ai --write
+F1=$(ls "$AP"/*.jsonl | head -1); echo '{"type":"user","uuid":"KEEP-MY-NEW-TURN"}' >> "$F1"
+expect_code 0 "接着聊过之后再转" --config "$CFG" --import-claude-ai --write
+grep -q "要转换 0 个" "$T/last.log" && grep -q KEEP-MY-NEW-TURN "$F1" && ok "转过的不重复转、不覆盖接着聊的内容" || bad "转过的被重复转或覆盖了"
+sed -i '/KEEP-MY-NEW-TURN/d' "$F1"
+
 echo "== 7. 补登记到桌面应用 Code 界面"
 # 造一个续接会话：整份复制 basic 再加一行更晚的提问 → basic 被它完整包含，它也有九成以上和 basic 相同（互相包含）
 "$PY" - "$HOME/.claude/projects" "$FX/expected.json" <<'PY'

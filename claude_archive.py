@@ -409,6 +409,67 @@ def register_desktop(write):
         os.replace(f + '.tmp', f)   # 先写临时文件再改名，桌面应用不会读到半截
     print(f'已写入 {len(todo)} 个。彻底退出桌面应用（托盘图标也要退）再打开就能看到')
 
+IMPORT_NS = uuid.UUID('6b1f3c1e-2a51-4e0e-9a55-a1c0c1a1c0de')   # 固定命名空间：同一个 claude.ai 对话每次算出的会话 id 都一样
+def ai_msg_text(m):   # claude.ai 一条消息 → 纯文本；工具调用写成一行说明（原样放进去接着聊会报格式错），思考不带
+    out = []
+    for b in m['b']:
+        if b['t'] == 'text': out.append(b['x'])
+        elif b['t'] == 'tool': out.append(f"[当时调用了工具 {b['name']}：{brief(b['in'])}]")
+        elif b['t'] == 'res': out.append(f"[工具 {b['name']} 的结果{'（报错）' if b['err'] else ''}：{one(b['x'], 500)}]")
+    out += [f"[附件 {a['name']}]\n{a['x']}" if a['x'] else f"[附件 {a['name']}（导出包里没有内容）]" for a in m['att']]
+    out += [f'[文件 {f}（导出包里没有内容）]' for f in m['files']]
+    return '\n\n'.join(x for x in out if x.strip())
+
+def ai_to_cc(c, cwd, ver):
+    """claude.ai 对话的主线 → Claude Code 会话的行；一问一答交替（连续同角色合并），首条是提问、末条是回答。空对话返回 None"""
+    main, _ = ai_tree(c['msgs']); turns = []
+    for u in main:
+        m = c['msgs'][u]; who = 'user' if m['who'] == 'human' else 'assistant'
+        x = ai_msg_text(m) or ('(空回复)' if who == 'assistant' else '(空消息)')
+        if turns and turns[-1][0] == who: turns[-1][1] += '\n\n' + x
+        else: turns.append([who, x, m['ts'], u])
+    if not turns: return None
+    if turns[0][0] == 'assistant': turns.insert(0, ['user', '(原对话从 Claude 的消息开始)', turns[0][2], c['uuid'] + '-head'])
+    if turns[-1][0] == 'user': turns.append(['assistant', '(原对话到这里结束，这条提问当时没有收到回复)', turns[-1][2], c['uuid'] + '-tail'])
+    sid = str(uuid.uuid5(IMPORT_NS, c['uuid'])); rows = []; parent = None
+    for who, x, ts, u in turns:
+        me = str(uuid.uuid5(IMPORT_NS, sid + u))
+        r = {'parentUuid': parent, 'isSidechain': False, 'type': who, 'uuid': me, 'timestamp': ts.replace('+00:00', 'Z'),
+             'userType': 'external', 'entrypoint': 'cli', 'cwd': cwd, 'sessionId': sid, 'version': ver}
+        r['message'] = {'role': 'user', 'content': x} if who == 'user' else {
+            'model': 'claude-opus-5-5', 'id': 'msg_imported_' + me.replace('-', '')[:24], 'type': 'message', 'role': 'assistant',
+            'content': [{'type': 'text', 'text': x}], 'stop_reason': 'end_turn', 'stop_sequence': None, 'usage': {'input_tokens': 0, 'output_tokens': 0}}
+        rows.append(r); parent = me
+    rows.append({'type': 'custom-title', 'customTitle': '[claude.ai] ' + (c['name'] or one(turns[0][1], 40)), 'sessionId': sid})
+    return rows
+
+def import_claude_ai(write):
+    """claude.ai 对话转成 Claude Code 会话，放在 ~/claude-ai-chats 名下；之后 --register-desktop 就能登记进桌面应用"""
+    cwd = os.path.abspath(os.path.expanduser('~/claude-ai-chats'))
+    proj = os.path.join(os.path.expanduser('~/.claude/projects'), re.sub(r'[^A-Za-z0-9]', '-', cwd))   # Claude Code 按工作目录这样起目录名
+    ver = '2.1.0'   # 版本号抄本机最近的会话
+    for p in sorted(G(os.path.expanduser('~/.claude/projects') + '/*/*.jsonl'), key=os.path.getmtime)[-1:]:
+        for l in snap_lines(p):
+            try: ver = json.loads(l).get('version') or ver
+            except ValueError: pass
+    convs, _, _ = ai_all(); todo = []; empty = done = 0
+    for c in sorted(convs.values(), key=lambda c: c.get('created_at') or ''):
+        rows = ai_to_cc(c, cwd, ver)
+        if not rows: empty += 1; continue
+        f = os.path.join(proj, rows[0]['sessionId'] + '.jsonl')
+        if os.path.exists(f): done += 1; continue   # 转过的不覆盖：可能已经在里面接着聊了
+        todo.append((f, rows))
+    for f, rows in todo: print(f"  {rows[0]['timestamp'][:10]}  {len(rows) - 1:4d} 条  {rows[-1]['customTitle']}")
+    print(f'\nclaude.ai 对话 {len(convs)} 个：要转换 {len(todo)} 个，已转过 {done} 个，空对话 {empty} 个。写到 {proj}')
+    if not write:
+        if todo: print('只是列出，没写。确认后加 --write 写入')
+        return
+    os.makedirs(cwd, exist_ok=True); os.makedirs(proj, exist_ok=True)
+    for f, rows in todo:
+        with open(f + '.tmp', 'w', encoding='utf-8') as o: o.writelines(json.dumps(r, ensure_ascii=False) + '\n' for r in rows)
+        os.replace(f + '.tmp', f)
+    print(f'已转换 {len(todo)} 个。要在桌面应用里看到，再运行 --register-desktop --write')
+
 def cc_all():
     files = cc_files(); print(f'Claude Code 文件 {len(files)} 个，读取中…', flush=True)
     SS = [cc_read(p) for p in files]
@@ -1464,8 +1525,9 @@ def cli(argv=None):
     g.add_argument('--dump-convs', metavar='目录', help='导出还没有主题标签的会话 → 目录/in-NN.jsonl（读上次导出的 data.js）')
     g.add_argument('--merge-titles', nargs='+', metavar='文件', help='合并小标题，文件内容 {"提问id": "小标题"}')
     g.add_argument('--register-desktop', action='store_true', help='列出桌面应用 Code 界面里看不到的旧会话；加 --write 补登记进去')
+    g.add_argument('--import-claude-ai', action='store_true', help='列出能转成 Claude Code 会话的 claude.ai 对话；加 --write 转换（不脱敏，转过的不覆盖）')
     g.add_argument('--merge-topics', nargs='+', metavar='文件', help='合并主题，文件内容 {"会话id": {"t": ["主题"], "s": "一句话"}}，可带 "_topics" 主题表')
-    ap.add_argument('--write', action='store_true', help='配合 --register-desktop：真的写入（不加只列出）')
+    ap.add_argument('--write', action='store_true', help='配合 --register-desktop / --import-claude-ai：真的写入（不加只列出）')
     a = ap.parse_args(argv)
     for f in (sys.stdout, sys.stderr): f.reconfigure(errors='replace')   # Windows 非中文区域、输出重定向到日志时，打印中文不至于崩
     os.umask(0o077)
@@ -1486,6 +1548,7 @@ def cli(argv=None):
     if a.merge_topics:
         configure(cfg, need_out=False)
         merge(a.merge_topics, TOPICS, lambda v: isinstance(v, dict) and isinstance(v.get('t', []), list) and isinstance(v.get('s', ''), str)); return 0
+    if a.import_claude_ai: configure(cfg, redact=False, need_out=False); import_claude_ai(a.write); return 0   # 写回本机给 Claude 接着聊，脱敏只会弄坏内容
     if a.register_desktop: configure(cfg, need_out=False); register_desktop(a.write); return 0
     if a.doctor: configure(cfg, a.out, a.redact, need_out=False); doctor(cfg, found, path); return 0
     if a.dump_prompts or a.dump_convs:

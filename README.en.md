@@ -32,7 +32,7 @@ Merge your local **Claude Code sessions** and your **claude.ai data export** int
 - **Handles the messy parts of the data**: content duplicated by resumed sessions is shown once; context compaction boundaries are marked; sub-agents are linked back to the call that spawned them; claude.ai edit / regenerate branches are all kept; claude.ai artifacts are replayed to their final version. See [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md) (Chinese).
 - **Docs for Claude**: Markdown split into chunks that each fit in a single Claude Code `Read` call, with monthly indexes. Point your local Claude at the folder and it can look up past conversations.
 - **Redaction on by default**: emails, phone numbers, Chinese ID and bank card numbers (checksum-verified), API keys, private keys and more are replaced when data is read, and all output is re-scanned at the end.
-- **Bring old sessions into the desktop app (optional)**: sessions you ran in a terminal don't show up in the Claude desktop app's Code view. You can register them there and pick them up again. See "Show old sessions in the desktop app's Code view" below.
+- **Bring old sessions into the desktop app (optional)**: sessions you ran in a terminal don't show up in the Claude desktop app's Code view. You can register them there and pick them up again, and claude.ai conversations can be converted into Claude Code sessions and added too. See "Show old sessions in the desktop app's Code view" below.
 - **Light and dark themes**, following the system or toggled by hand.
 - **Minimal dependencies**: Python 3.9+ standard library only. Optionally `markdown-it-py` for nicer Markdown rendering (the installer puts it in the repo's own `.venv`).
 
@@ -122,6 +122,7 @@ python3 claude_archive.py                 # export (a few minutes for a few hund
 | `--selftest` | run only the redaction and branch-tree self-tests |
 | `--dump-prompts DIR` / `--dump-convs DIR` | export prompts without a navigator title / sessions without topics (for AI processing, see below) |
 | `--register-desktop` / `--register-desktop --write` | list / register old sessions missing from the desktop app's Code view (see below) |
+| `--import-claude-ai` / `--import-claude-ai --write` | list / convert claude.ai conversations into Claude Code sessions (see below) |
 | `--merge-titles FILE…` / `--merge-topics FILE…` | merge AI-written titles `{"prompt-id": "title"}` / topics `{"session-id": {"t": ["topic"], "s": "one-line summary"}}` (optional `"_topics"` table) into the local cache |
 
 Exit codes: `0` success; `1` final checks failed (previous output left untouched, reasons in the report); `2` config error.
@@ -192,6 +193,23 @@ Then **fully quit the desktop app** (including the tray icon) and reopen it. Old
 - **Same-titled sessions**: continuing an old session in Claude Code often starts a new session that copies the earlier content, so the sidebar fills up with sessions that share a title. A session whose content is at least 90% contained in a session that ended later is registered as archived: hidden from the sidebar by default, still available under archived sessions.
 - **Caveat**: this relies on the desktop app's internal file format, not a public API, and may break when the app updates. Tested only with the Microsoft Store build of the desktop app on Windows + WSL; the macOS and Linux registry paths follow the same pattern but haven't been tested.
 
+### Bring claude.ai conversations in too
+
+claude.ai can export conversations but can't import them. Instead, this converts the conversations in your export into Claude Code sessions so they show up in the Code view, where you can read them and continue them (in the Code tab, not the Chat tab).
+
+```bash
+python3 claude_archive.py --import-claude-ai          # list conversations to convert, write nothing
+python3 claude_archive.py --import-claude-ai --write  # convert
+python3 claude_archive.py --register-desktop --write  # register them, then fully quit and reopen the desktop app
+```
+
+- **Where they go**: converted sessions belong to the folder `~/claude-ai-chats` (created if missing), so they form their own group in the sidebar, with titles prefixed `[claude.ai]`.
+- **What's included**: only each conversation's main line, the version you last saw; other branches from edits and regenerations are left out. Prompts, replies and attachment text are kept verbatim.
+- **No redaction**: conversion always uses the original text, whatever `redact` says. This is written back into your own Claude data so you can continue the conversation; placeholders would just corrupt it.
+- **What changes**: past tool calls (web search, file generation, …) become one-line notes, tool results are cut to 500 characters, and thinking is dropped. Kept as-is, they would cause format errors when you continue.
+- **Never overwrites**: each conversation maps to a fixed session id, and already-converted ones are skipped, so anything you've added by continuing a session is safe and re-running is fine. Empty conversations are skipped.
+- **Very long conversations** may exceed the context window when you continue; run `/compact` in the session first.
+
 ## FAQ
 
 **It refuses to run: "inside a git work tree" / "looks like a synced folder".** Intentional. Pick a plain local `out_dir`, or pass `--allow-synced-output` if you really mean it.
@@ -208,7 +226,7 @@ Then **fully quit the desktop app** (including the tray icon) and reopen it. Old
 
 **Markdown shows as plain text.** `markdown-it-py` isn't installed; re-run the installer and accept, or `pip install markdown-it-py`.
 
-**Will it modify my Claude data?** Exporting doesn't. All sources are read-only, and credential files (`~/.claude/sessions/`, `*.key`, …) are never opened. The one exception is when you run `--register-desktop --write` yourself: it adds files to the desktop app's registry folder, without changing existing ones.
+**Will it modify my Claude data?** Exporting doesn't. All sources are read-only, and credential files (`~/.claude/sessions/`, `*.key`, …) are never opened. The only exceptions are two commands you run yourself: `--register-desktop --write` adds registry entries to the desktop app's folder without changing existing ones; `--import-claude-ai --write` adds session files under `~/.claude/projects`. Neither changes existing transcripts.
 
 ## Uninstall
 
