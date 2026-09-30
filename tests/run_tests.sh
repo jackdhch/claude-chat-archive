@@ -248,6 +248,11 @@ for f in fs:
 assert E['placeholder'] not in allx and '[已脱敏]' not in allx and E['secrets']['email'] in allx, '被脱敏了'   # 配置开着脱敏，转换也必须是原文
 assert 'BRANCH-EDIT-Q' in allx and '重新生成' in allx and 'BRANCH-OLD-Q' not in allx and '第一版' not in allx, '主线/分支不对'
 PY
+"$PY" -c "
+import sys; sys.path.insert(0, '$ROOT'); import claude_archive as C
+m = lambda u, p, who: {'u': u, 'p': p, 'ts': '2026-01-01T00:00:0' + u + 'Z', 'who': who, 'b': [], 'att': [], 'files': []}
+assert C.ai_to_cc({'uuid': 'x', 'name': '', 'msgs': {'1': m('1', None, 'human'), '2': m('2', '1', 'assistant')}}, '/w', 'v') is None
+" && ok "没有任何文字的对话不转换" || bad "空对话也被转换了"
 expect_code 0 "再转一次" --config "$CFG" --import-claude-ai --write
 F1=$(ls "$AP"/*.jsonl | head -1); echo '{"type":"user","uuid":"KEEP-MY-NEW-TURN"}' >> "$F1"
 expect_code 0 "接着聊过之后再转" --config "$CFG" --import-claude-ai --write

@@ -421,8 +421,9 @@ def ai_msg_text(m):   # claude.ai 一条消息 → 纯文本；工具调用写�
     return '\n\n'.join(x for x in out if x.strip())
 
 def ai_to_cc(c, cwd, ver):
-    """claude.ai 对话的主线 → Claude Code 会话的行；一问一答交替（连续同角色合并），首条是提问、末条是回答。空对话返回 None"""
+    """claude.ai 对话的主线 → Claude Code 会话的行；一问一答交替（连续同角色合并），首条是提问、末条是回答。空对话（没有任何文字）返回 None"""
     main, _ = ai_tree(c['msgs']); turns = []
+    if not any(ai_msg_text(c['msgs'][u]) for u in main): return None   # 一个字都没有（只发了图片/语音，导出包不带原件）：转过去也没法看、没法接着聊
     for u in main:
         m = c['msgs'][u]; who = 'user' if m['who'] == 'human' else 'assistant'
         x = ai_msg_text(m) or ('(空回复)' if who == 'assistant' else '(空消息)')
