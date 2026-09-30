@@ -19,7 +19,7 @@
 配置：$XDG_CONFIG_HOME/claude-archive/config.json（默认 ~/.config/…；Windows %APPDATA%\\claude-archive\\config.json），
       字段见 config.example.json。缓存 titles.json / topics.json 在 $XDG_DATA_HOME/claude-archive/（默认 ~/.local/share/…；
       Windows %LOCALAPPDATA%\\claude-archive\\）。依赖：Python 3.9+ 标准库；装了 markdown-it-py 会渲染 Markdown，没装退回纯文本。"""
-import json, os, re, glob, zipfile, html, hashlib, shutil, sys, base64, urllib.parse, argparse, platform, tempfile
+import json, os, re, glob, zipfile, html, hashlib, shutil, sys, base64, urllib.parse, argparse, platform, tempfile, uuid
 from collections import defaultdict, Counter
 from datetime import datetime, timedelta, timezone
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -342,6 +342,64 @@ def desk_meta():
         if sid and (sid not in d or j.get('titleSource') == 'user'):
             d[sid] = {k: j.get(k) for k in ('title', 'titleSource', 'isStarred', 'isArchived')}
     return d
+
+def cc_brief(p):   # 登记用：只取几个字段，不解析整段对话
+    B = {'cwd': '', 't0': '', 't1': '', 'model': None, 'last': None, 'custom': None, 'ai': None, 'q': ''}
+    for l in snap_lines(p):
+        try: r = json.loads(l)
+        except ValueError: continue
+        t = r.get('type')
+        if t == 'custom-title': B['custom'] = r.get('customTitle') or B['custom']; continue
+        if t == 'ai-title': B['ai'] = r.get('aiTitle') or B['ai']; continue
+        if r.get('isSidechain'): continue
+        ts = r.get('timestamp') or ''
+        if ts: B['t0'] = B['t0'] or ts; B['t1'] = max(B['t1'], ts)
+        B['cwd'] = B['cwd'] or r.get('cwd', '')
+        m = r.get('message') if isinstance(r.get('message'), dict) else {}
+        if t == 'assistant':
+            B['last'] = r.get('uuid') or B['last']
+            if m.get('model') and m['model'] != '<synthetic>': B['model'] = m['model']
+        if t == 'user' and not B['q'] and not r.get('isMeta'):
+            c = m.get('content'); c = c if isinstance(c, str) else ''.join(x.get('text', '') for x in c or [] if isinstance(x, dict) and x.get('type') == 'text')
+            if c.strip() and not c.lstrip().startswith('<'): B['q'] = c   # 跳过 <command-name> 这类命令回显
+    return B
+
+def register_desktop(write):
+    """把桌面应用 Code 界面里看不到的旧会话补登记进去（桌面应用的内部格式，非官方接口）"""
+    locs = [p for g in DESK for p in G(g)]
+    if not locs: raise CfgError('没找到桌面应用的会话登记文件（desktop_meta_globs 为空或没匹配到）。先在桌面应用的 Code 界面随便开一个会话，再跑一次')
+    dst = os.path.dirname(max(locs, key=os.path.getmtime))   # 最近用过的那条所在文件夹 = 当前登录的账号
+    have = desk_meta(); distro = os.environ.get('WSL_DISTRO_NAME'); todo = []; seen = set(have); skip = 0
+    def ms(s): return int(datetime.fromisoformat(s.replace('Z', '+00:00')).timestamp() * 1000)
+    for root in CC_ROOTS:   # 只看会话目录本身；extra_backup_roots 里的备份桌面应用接不上，不登记。本机目录排在前面，同名先登记本机的
+        for p in G(root + '/*/*.jsonl'):
+            sid = os.path.basename(p)[:-6]
+            if sid in seen or sid.startswith('agent-'): continue
+            B = cc_brief(p)
+            if not (B['q'] and B['cwd'] and B['t0']): continue   # 没有提问的空会话不登记
+            try: B['ms'] = ms(B['t0']), ms(B['t1'])   # 先算好，免得写到一半因为时间格式怪而中断
+            except ValueError: continue
+            if B['cwd'].startswith('/') != (not p.startswith('/mnt/') and kind() != 'windows'): skip += 1; continue   # 工作目录和所在系统对不上（如 Windows 盘里的 WSL 会话副本），桌面应用接不上
+            seen.add(sid); todo.append((sid, p, B))
+    todo.sort(key=lambda x: x[2]['t0'])
+    for sid, p, B in todo: print(f"  {B['t0'][:10]}  {B['cwd']}  {one(B['custom'] or B['ai'] or B['q'], 40)}")
+    print(f'\n已登记 {len(have)} 个，还没登记 {len(todo)} 个' + (f'，另有 {skip} 个是别的系统的副本、接不上，跳过' if skip else '') + f'。登记文件夹：{dst}')
+    if not write:
+        if todo: print('只是列出，没写。确认后加 --write 写入')
+        return
+    wsl = kind() == 'wsl'
+    if wsl and not distro and any(B['cwd'].startswith('/') for _, _, B in todo): raise CfgError('WSL 里没有 WSL_DISTRO_NAME 环境变量，不知道发行版名字，没写')
+    for sid, p, B in todo:
+        d = {'sessionId': 'local_' + str(uuid.uuid4()), 'cliSessionId': sid, 'cwd': B['cwd'], 'originCwd': B['cwd'],
+             'createdAt': B['ms'][0], 'lastActivityAt': B['ms'][1], 'lastFocusedAt': B['ms'][1], 'isArchived': False,
+             'title': one(B['custom'] or B['ai'] or B['q'], 40), 'titleSource': 'user' if B['custom'] else 'auto', 'permissionMode': 'default'}
+        if B['model']: d['model'] = B['model']
+        if B['last']: d['lastAssistantUuid'] = B['last']
+        if wsl and B['cwd'].startswith('/'): d['wslConfig'] = {'distro': distro}   # WSL 里的会话；/mnt/c 下的是 Windows 本机会话
+        f = f"{dst}/{d['sessionId']}.json"
+        with open(f + '.tmp', 'w', encoding='utf-8') as o: json.dump(d, o, ensure_ascii=False)
+        os.replace(f + '.tmp', f)   # 先写临时文件再改名，桌面应用不会读到半截
+    print(f'已写入 {len(todo)} 个。彻底退出桌面应用（托盘图标也要退）再打开就能看到')
 
 def cc_all():
     files = cc_files(); print(f'Claude Code 文件 {len(files)} 个，读取中…', flush=True)
@@ -1397,7 +1455,9 @@ def cli(argv=None):
     g.add_argument('--dump-prompts', metavar='目录', help='导出还没有导航小标题的提问 → 目录/prompts-NN.jsonl，每行 {"id","t"}')
     g.add_argument('--dump-convs', metavar='目录', help='导出还没有主题标签的会话 → 目录/in-NN.jsonl（读上次导出的 data.js）')
     g.add_argument('--merge-titles', nargs='+', metavar='文件', help='合并小标题，文件内容 {"提问id": "小标题"}')
+    g.add_argument('--register-desktop', action='store_true', help='列出桌面应用 Code 界面里看不到的旧会话；加 --write 补登记进去')
     g.add_argument('--merge-topics', nargs='+', metavar='文件', help='合并主题，文件内容 {"会话id": {"t": ["主题"], "s": "一句话"}}，可带 "_topics" 主题表')
+    ap.add_argument('--write', action='store_true', help='配合 --register-desktop：真的写入（不加只列出）')
     a = ap.parse_args(argv)
     for f in (sys.stdout, sys.stderr): f.reconfigure(errors='replace')   # Windows 非中文区域、输出重定向到日志时，打印中文不至于崩
     os.umask(0o077)
@@ -1418,6 +1478,7 @@ def cli(argv=None):
     if a.merge_topics:
         configure(cfg, need_out=False)
         merge(a.merge_topics, TOPICS, lambda v: isinstance(v, dict) and isinstance(v.get('t', []), list) and isinstance(v.get('s', ''), str)); return 0
+    if a.register_desktop: configure(cfg, need_out=False); register_desktop(a.write); return 0
     if a.doctor: configure(cfg, a.out, a.redact, need_out=False); doctor(cfg, found, path); return 0
     if a.dump_prompts or a.dump_convs:
         d = xp(a.dump_prompts or a.dump_convs); why = out_problem(d)

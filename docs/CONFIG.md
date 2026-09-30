@@ -25,7 +25,7 @@
 | `extra_backup_roots` | `[]` | 你自己另外备份的会话目录（格式同上）。只用来补上源目录里已经被 Claude Code 自动清理掉的会话；源目录里还在的会话不会被备份覆盖。 |
 | `claude_ai_zips` | `["~/Downloads/data-*-batch-*.zip"]` | claude.ai 官方导出包的位置（通配符）。WSL 下还会加 `/mnt/c/Users/<用户名>/Downloads/data-*-batch-*.zip`。可以同时放新旧多个导出包，会按消息合并（见下文）。 |
 | `chatgpt_zips` | `["~/Downloads/*.zip"]` | 要检查是不是 ChatGPT 官方导出包的 zip（通配符）。WSL 下还会加 `/mnt/c/Users/<用户名>/Downloads/*.zip`。**不看文件名，看内容**：zip 里有 `conversations.json`（或拆分的 `conversations-000.json`……），且会话带 `mapping` 才收；claude.ai 的包（会话带 `chat_messages`）和别的 zip 自动跳过。可以同时放新旧多个包，同一个对话以 `update_time` 最新的为准（见下文）。没有 ChatGPT 包就不生成 `chatgpt/` 页面。 |
-| `desktop_meta_globs` | 自动探测（见下表） | Claude 桌面应用的会话元数据，只读 5 个字段：会话 id、标题、标题来源（手动改的还是自动生成的）、是否星标、是否归档。用来让网页上的标题和星标与桌面应用一致。没有桌面应用就留空列表。 |
+| `desktop_meta_globs` | 自动探测（见下表） | Claude 桌面应用的会话元数据，只读 5 个字段：会话 id、标题、标题来源（手动改的还是自动生成的）、是否星标、是否归档。用来让网页上的标题和星标与桌面应用一致。`--register-desktop --write` 也按这里找登记文件夹，往里新增登记文件（不改已有的）。没有桌面应用就留空列表。 |
 | `redact` | `true` | 是否脱敏。开着时，读入数据的那一刻就把邮箱、手机号、密钥等换成占位符，最后还会把全部输出重扫一遍，有残留就不替换旧输出。规则和局限见 [PRIVACY.md](PRIVACY.md)。命令行 `--redact` / `--no-redact` 可以临时覆盖。 |
 | `redact_literals` | `[]` | 精确脱敏值：你知道的、正则抓不到的敏感字符串（比如某个推送服务的 key、内部项目代号、家庭住址的一部分）。出现就替换成 `[已脱敏]`，也会匹配它的 URL 编码写法。少于 6 个字符的值会被忽略（太短会误伤正常文字）。 |
 | `redact_literal_files` | `[]` | 从文件里读精确脱敏值：每个文件一行一个值。如果某一行是网址或路径，它的最后一段也会单独遮住（例如推送地址 `https://api.day.app/<key>` 里的 key，对话里常常单独出现）。适合“密钥本来就存在某个文件里、不想再抄一份进配置”的情况。文件只读进内存，不会被打印或输出。 |

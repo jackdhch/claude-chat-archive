@@ -227,6 +227,28 @@ ls "$T/dump2"/in-*.jsonl >/dev/null 2>&1 && ! grep -q "cc-$SID1" "$T/dump2"/in-*
 grep -q '"id": "gpt-' "$T/dump2"/in-*.jsonl && ! grep -q "gpt-$GID" "$T/dump2"/in-*.jsonl && ok "dump-convs 含 ChatGPT 会话（key 是 gpt-<id>），已打标签的跳过" || bad "dump-convs 的 ChatGPT 会话不对"
 [ -z "$(ls -A "$T/xdg/data/claude-archive" 2>/dev/null | grep -v -E '^(titles|topics)\.json$')" ] && [ -f "$T/xdg/data/claude-archive/titles.json" ] && ok "缓存在 XDG_DATA_HOME/claude-archive/" || bad "缓存位置不对"
 
+echo "== 7. 补登记到桌面应用 Code 界面"
+DM="$HOME/desktop-meta/claude-code-sessions"; nreg() { find "$DM" -name 'local_*.json' | wc -l | tr -d ' '; }
+N0=$(nreg)
+expect_code 0 "--register-desktop（只列出）" --config "$CFG" --register-desktop
+N=$(sed -n 's/.*还没登记 \([0-9]*\) 个.*/\1/p' "$T/last.log")
+[ "$(nreg)" = "$N0" ] && ok "不加 --write 不写文件" || bad "不加 --write 也写了文件"
+[ "${N:-0}" -gt 0 ] && ok "列出 $N 个未登记会话" || bad "没列出未登记会话"
+expect_code 0 "--register-desktop --write" --config "$CFG" --register-desktop --write
+[ "$(nreg)" = "$((N0 + N))" ] && ok "写入 $N 个登记文件" || bad "登记文件数不对：$(nreg)，期望 $((N0 + N))"
+"$PY" - "$DM" "$HOME/.claude/projects" <<'PY' && ok "登记文件字段齐全、指向本机会话、不重复" || bad "登记文件内容不对"
+import glob, json, os, sys
+js = [json.load(open(p, encoding='utf-8')) for p in glob.glob(sys.argv[1] + '/**/local_*.json', recursive=True)]
+ids = [j['cliSessionId'] for j in js]; assert len(ids) == len(set(ids)), ids
+for j in js:
+    if 'sessionId' not in j: continue   # 假数据里原有的那条
+    assert j['sessionId'].startswith('local_') and j['cwd'] and j['createdAt'] <= j['lastActivityAt'] and j['title'], j
+    assert glob.glob(f"{sys.argv[2]}/*/{j['cliSessionId']}.jsonl"), j   # 不登记备份目录里的
+PY
+expect_code 0 "再跑一次" --config "$CFG" --register-desktop --write
+grep -q "还没登记 0 个" "$T/last.log" && [ "$(nreg)" = "$((N0 + N))" ] && ok "重复跑不会重复登记" || bad "重复跑又登记了"
+! find "$DM" -name '*.tmp' | grep -q . && ok "没留下 .tmp 临时文件" || bad "留下了 .tmp"
+
 echo
 echo "合计：通过 $PASS，失败 $FAIL"
 [ "$FAIL" = 0 ] || { printf '  - %s\n' "${FAILS[@]}"; exit 1; }

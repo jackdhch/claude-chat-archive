@@ -32,6 +32,7 @@ Merge your local **Claude Code sessions** and your **claude.ai data export** int
 - **Handles the messy parts of the data**: content duplicated by resumed sessions is shown once; context compaction boundaries are marked; sub-agents are linked back to the call that spawned them; claude.ai edit / regenerate branches are all kept; claude.ai artifacts are replayed to their final version. See [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md) (Chinese).
 - **Docs for Claude**: Markdown split into chunks that each fit in a single Claude Code `Read` call, with monthly indexes. Point your local Claude at the folder and it can look up past conversations.
 - **Redaction on by default**: emails, phone numbers, Chinese ID and bank card numbers (checksum-verified), API keys, private keys and more are replaced when data is read, and all output is re-scanned at the end.
+- **Bring old sessions into the desktop app (optional)**: sessions you ran in a terminal don't show up in the Claude desktop app's Code view. You can register them there and pick them up again. See "Show old sessions in the desktop app's Code view" below.
 - **Light and dark themes**, following the system or toggled by hand.
 - **Minimal dependencies**: Python 3.9+ standard library only. Optionally `markdown-it-py` for nicer Markdown rendering (the installer puts it in the repo's own `.venv`).
 
@@ -120,6 +121,7 @@ python3 claude_archive.py                 # export (a few minutes for a few hund
 | `--allow-synced-output` | allow output inside a git work tree or synced folder (not recommended) |
 | `--selftest` | run only the redaction and branch-tree self-tests |
 | `--dump-prompts DIR` / `--dump-convs DIR` | export prompts without a navigator title / sessions without topics (for AI processing, see below) |
+| `--register-desktop` / `--register-desktop --write` | list / register old sessions missing from the desktop app's Code view (see below) |
 | `--merge-titles FILE…` / `--merge-topics FILE…` | merge AI-written titles `{"prompt-id": "title"}` / topics `{"session-id": {"t": ["topic"], "s": "one-line summary"}}` (optional `"_topics"` table) into the local cache |
 
 Exit codes: `0` success; `1` final checks failed (previous output left untouched, reasons in the report); `2` config error.
@@ -171,6 +173,24 @@ The installer can add a daily job (default 19:00):
 
 Re-run the installer with `--time HH:MM` to change the time; the old job is replaced.
 
+## Optional: show old sessions in the desktop app's Code view
+
+Claude Code sessions you ran in a terminal don't appear in the Claude desktop app's Code view, and after switching accounts or reinstalling the app your earlier sessions disappear from the sidebar. The transcripts are still in `~/.claude/projects`; the desktop app just has no entry for them.
+
+![Mock-up: before, the sidebar shows only one new session; after registering and restarting the app, old sessions appear under their original folders](docs/screenshots/desktop-register.png)
+
+```bash
+python3 claude_archive.py --register-desktop          # list unregistered sessions, write nothing
+python3 claude_archive.py --register-desktop --write  # register them
+```
+
+Then **fully quit the desktop app** (including the tray icon) and reopen it. Old sessions show up in the sidebar under their original folders, and you can continue any of them.
+
+- **Prerequisite**: open any session in the desktop app's Code view first, so the app creates the registry folder for your current account. The tool writes into the most recently used registry folder, located via `desktop_meta_globs`.
+- **Adds, never edits**: one new `local_*.json` per session; existing entries are left alone. Already-registered sessions are skipped, so it's safe to re-run. To undo, delete the files it added.
+- **What gets registered**: main sessions with at least one prompt under `claude_code_roots`. Backups in `extra_backup_roots`, empty sessions and sub-agents are skipped. On WSL, copies of WSL sessions stored on the Windows drive are also skipped, because the app can't resume them.
+- **Caveat**: this relies on the desktop app's internal file format, not a public API, and may break when the app updates. Tested only with the Microsoft Store build of the desktop app on Windows + WSL; the macOS and Linux registry paths follow the same pattern but haven't been tested.
+
 ## FAQ
 
 **It refuses to run: "inside a git work tree" / "looks like a synced folder".** Intentional. Pick a plain local `out_dir`, or pass `--allow-synced-output` if you really mean it.
@@ -187,7 +207,7 @@ Re-run the installer with `--time HH:MM` to change the time; the old job is repl
 
 **Markdown shows as plain text.** `markdown-it-py` isn't installed; re-run the installer and accept, or `pip install markdown-it-py`.
 
-**Will it modify my Claude data?** No. All sources are read-only, and credential files (`~/.claude/sessions/`, `*.key`, …) are never opened.
+**Will it modify my Claude data?** Exporting doesn't. All sources are read-only, and credential files (`~/.claude/sessions/`, `*.key`, …) are never opened. The one exception is when you run `--register-desktop --write` yourself: it adds files to the desktop app's registry folder, without changing existing ones.
 
 ## Uninstall
 
