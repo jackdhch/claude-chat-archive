@@ -344,7 +344,7 @@ def desk_meta():
     return d
 
 def cc_brief(p):   # 登记用：只取几个字段，不解析整段对话
-    B = {'cwd': '', 't0': '', 't1': '', 'model': None, 'last': None, 'custom': None, 'ai': None, 'q': ''}
+    B = {'cwd': '', 't0': '', 't1': '', 'model': None, 'last': None, 'custom': None, 'ai': None, 'q': '', 'u': set()}
     for l in snap_lines(p):
         try: r = json.loads(l)
         except ValueError: continue
@@ -352,6 +352,7 @@ def cc_brief(p):   # 登记用：只取几个字段，不解析整段对话
         if t == 'custom-title': B['custom'] = r.get('customTitle') or B['custom']; continue
         if t == 'ai-title': B['ai'] = r.get('aiTitle') or B['ai']; continue
         if r.get('isSidechain'): continue
+        if r.get('uuid'): B['u'].add(r['uuid'])
         ts = r.get('timestamp') or ''
         if ts: B['t0'] = B['t0'] or ts; B['t1'] = max(B['t1'], ts)
         B['cwd'] = B['cwd'] or r.get('cwd', '')
@@ -369,21 +370,28 @@ def register_desktop(write):
     locs = [p for g in DESK for p in G(g)]
     if not locs: raise CfgError('没找到桌面应用的会话登记文件（desktop_meta_globs 为空或没匹配到）。先在桌面应用的 Code 界面随便开一个会话，再跑一次')
     dst = os.path.dirname(max(locs, key=os.path.getmtime))   # 最近用过的那条所在文件夹 = 当前登录的账号
-    have = desk_meta(); distro = os.environ.get('WSL_DISTRO_NAME'); todo = []; seen = set(have); skip = 0
+    have = desk_meta(); distro = os.environ.get('WSL_DISTRO_NAME'); todo = []; U = {}; skip = 0
     def ms(s): return int(datetime.fromisoformat(s.replace('Z', '+00:00')).timestamp() * 1000)
     for root in CC_ROOTS:   # 只看会话目录本身；extra_backup_roots 里的备份桌面应用接不上，不登记。本机目录排在前面，同名先登记本机的
         for p in G(root + '/*/*.jsonl'):
             sid = os.path.basename(p)[:-6]
-            if sid in seen or sid.startswith('agent-'): continue
-            B = cc_brief(p)
-            if not (B['q'] and B['cwd'] and B['t0']): continue   # 没有提问的空会话不登记
+            if sid in U or sid.startswith('agent-'): continue
+            B = cc_brief(p); U[sid] = B   # 已登记的也要读：用来判断新会话是不是被它包含
+            if sid in have or not (B['q'] and B['cwd'] and B['t0']): continue   # 没有提问的空会话不登记
             try: B['ms'] = ms(B['t0']), ms(B['t1'])   # 先算好，免得写到一半因为时间格式怪而中断
             except ValueError: continue
             if B['cwd'].startswith('/') != (not p.startswith('/mnt/') and kind() != 'windows'): skip += 1; continue   # 工作目录和所在系统对不上（如 Windows 盘里的 WSL 会话副本），桌面应用接不上
-            seen.add(sid); todo.append((sid, p, B))
+            todo.append((sid, p, B))
+    # 接着旧会话继续聊时，新会话会把前面的内容复制过去；九成以上内容被更晚的会话包含的，登记成归档，免得侧栏一串同名会话
+    owners = defaultdict(set)
+    for sid, B in U.items():
+        for u in B['u']: owners[u].add(sid)
+    for sid, p, B in todo:
+        n = Counter(o for u in B['u'] for o in owners[u] if o != sid)
+        B['arch'] = any(k >= 0.9 * len(B['u']) and (U[o]['t1'], o) > (B['t1'], sid) for o, k in n.items())   # 比谁更晚结束：复制过去的行保留原时间，开始时间会一样；严格大于保证两个里总留一个
     todo.sort(key=lambda x: x[2]['t0'])
-    for sid, p, B in todo: print(f"  {B['t0'][:10]}  {B['cwd']}  {one(B['custom'] or B['ai'] or B['q'], 40)}")
-    print(f'\n已登记 {len(have)} 个，还没登记 {len(todo)} 个' + (f'，另有 {skip} 个是别的系统的副本、接不上，跳过' if skip else '') + f'。登记文件夹：{dst}')
+    for sid, p, B in todo: print(f"  {B['t0'][:10]}  {B['cwd']}  {one(B['custom'] or B['ai'] or B['q'], 40)}" + ('  （被后面的会话包含，登记为归档）' if B['arch'] else ''))
+    print(f'\n已登记 {len(have)} 个，还没登记 {len(todo)} 个（其中 {sum(B["arch"] for _, _, B in todo)} 个登记为归档）' + (f'，另有 {skip} 个是别的系统的副本、接不上，跳过' if skip else '') + f'。登记文件夹：{dst}')
     if not write:
         if todo: print('只是列出，没写。确认后加 --write 写入')
         return
@@ -391,7 +399,7 @@ def register_desktop(write):
     if wsl and not distro and any(B['cwd'].startswith('/') for _, _, B in todo): raise CfgError('WSL 里没有 WSL_DISTRO_NAME 环境变量，不知道发行版名字，没写')
     for sid, p, B in todo:
         d = {'sessionId': 'local_' + str(uuid.uuid4()), 'cliSessionId': sid, 'cwd': B['cwd'], 'originCwd': B['cwd'],
-             'createdAt': B['ms'][0], 'lastActivityAt': B['ms'][1], 'lastFocusedAt': B['ms'][1], 'isArchived': False,
+             'createdAt': B['ms'][0], 'lastActivityAt': B['ms'][1], 'lastFocusedAt': B['ms'][1], 'isArchived': B['arch'],
              'title': one(B['custom'] or B['ai'] or B['q'], 40), 'titleSource': 'user' if B['custom'] else 'auto', 'permissionMode': 'default'}
         if B['model']: d['model'] = B['model']
         if B['last']: d['lastAssistantUuid'] = B['last']

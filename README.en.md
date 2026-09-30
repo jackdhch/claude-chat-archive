@@ -189,6 +189,7 @@ Then **fully quit the desktop app** (including the tray icon) and reopen it. Old
 - **Prerequisite**: open any session in the desktop app's Code view first, so the app creates the registry folder for your current account. The tool writes into the most recently used registry folder, located via `desktop_meta_globs`.
 - **Adds, never edits**: one new `local_*.json` per session; existing entries are left alone. Already-registered sessions are skipped, so it's safe to re-run. To undo, delete the files it added.
 - **What gets registered**: main sessions with at least one prompt under `claude_code_roots`. Backups in `extra_backup_roots`, empty sessions and sub-agents are skipped. On WSL, copies of WSL sessions stored on the Windows drive are also skipped, because the app can't resume them.
+- **Same-titled sessions**: continuing an old session in Claude Code often starts a new session that copies the earlier content, so the sidebar fills up with sessions that share a title. A session whose content is at least 90% contained in a session that ended later is registered as archived: hidden from the sidebar by default, still available under archived sessions.
 - **Caveat**: this relies on the desktop app's internal file format, not a public API, and may break when the app updates. Tested only with the Microsoft Store build of the desktop app on Windows + WSL; the macOS and Linux registry paths follow the same pattern but haven't been tested.
 
 ## FAQ

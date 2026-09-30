@@ -228,6 +228,15 @@ grep -q '"id": "gpt-' "$T/dump2"/in-*.jsonl && ! grep -q "gpt-$GID" "$T/dump2"/i
 [ -z "$(ls -A "$T/xdg/data/claude-archive" 2>/dev/null | grep -v -E '^(titles|topics)\.json$')" ] && [ -f "$T/xdg/data/claude-archive/titles.json" ] && ok "缓存在 XDG_DATA_HOME/claude-archive/" || bad "缓存位置不对"
 
 echo "== 7. 补登记到桌面应用 Code 界面"
+# 造一个续接会话：整份复制 basic 再加一行更晚的提问 → basic 被它完整包含，它也有九成以上和 basic 相同（互相包含）
+"$PY" - "$HOME/.claude/projects" "$FX/expected.json" <<'PY'
+import glob, json, sys
+E = json.load(open(sys.argv[2], encoding='utf-8'))['session_ids']; src = glob.glob(f"{sys.argv[1]}/*/{E['basic']}.jsonl")[0]
+rows = [json.loads(l) for l in open(src, encoding='utf-8') if l.strip()]; cwd = next(r['cwd'] for r in rows if r.get('cwd'))
+rows.append({'type': 'user', 'uuid': '00000000-0000-4000-8000-00000000c0de', 'timestamp': '2099-01-01T00:00:00.000Z', 'sessionId': 'cont-basic',
+             'cwd': cwd, 'isSidechain': False, 'message': {'role': 'user', 'content': 'CONT-MARK 接着聊'}})
+with open(src.rsplit('/', 1)[0] + '/5e55c0de-0000-4000-8000-000000000001.jsonl', 'w', encoding='utf-8') as f: f.writelines(json.dumps(r, ensure_ascii=False) + '\n' for r in rows)
+PY
 DM="$HOME/desktop-meta/claude-code-sessions"; nreg() { find "$DM" -name 'local_*.json' | wc -l | tr -d ' '; }
 N0=$(nreg)
 expect_code 0 "--register-desktop（只列出）" --config "$CFG" --register-desktop
@@ -236,7 +245,7 @@ N=$(sed -n 's/.*还没登记 \([0-9]*\) 个.*/\1/p' "$T/last.log")
 [ "${N:-0}" -gt 0 ] && ok "列出 $N 个未登记会话" || bad "没列出未登记会话"
 expect_code 0 "--register-desktop --write" --config "$CFG" --register-desktop --write
 [ "$(nreg)" = "$((N0 + N))" ] && ok "写入 $N 个登记文件" || bad "登记文件数不对：$(nreg)，期望 $((N0 + N))"
-"$PY" - "$DM" "$HOME/.claude/projects" <<'PY' && ok "登记文件字段齐全、指向本机会话、不重复" || bad "登记文件内容不对"
+"$PY" - "$DM" "$HOME/.claude/projects" "$FX/expected.json" <<'PY' && ok "登记文件字段齐全、指向本机会话、不重复；被续接的旧会话登记为归档" || bad "登记文件内容不对"
 import glob, json, os, sys
 js = [json.load(open(p, encoding='utf-8')) for p in glob.glob(sys.argv[1] + '/**/local_*.json', recursive=True)]
 ids = [j['cliSessionId'] for j in js]; assert len(ids) == len(set(ids)), ids
@@ -244,6 +253,9 @@ for j in js:
     if 'sessionId' not in j: continue   # 假数据里原有的那条
     assert j['sessionId'].startswith('local_') and j['cwd'] and j['createdAt'] <= j['lastActivityAt'] and j['title'], j
     assert glob.glob(f"{sys.argv[2]}/*/{j['cliSessionId']}.jsonl"), j   # 不登记备份目录里的
+E = json.load(open(sys.argv[3], encoding='utf-8'))['session_ids']
+arch = {j['cliSessionId'] for j in js if j.get('isArchived')}
+assert arch == {E['basic']}, arch   # 被完整包含的 basic 归档；互相包含时更晚结束的续接会话留着；old 有独有结尾，不归档
 PY
 expect_code 0 "再跑一次" --config "$CFG" --register-desktop --write
 grep -q "还没登记 0 个" "$T/last.log" && [ "$(nreg)" = "$((N0 + N))" ] && ok "重复跑不会重复登记" || bad "重复跑又登记了"
