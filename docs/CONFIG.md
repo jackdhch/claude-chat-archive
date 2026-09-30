@@ -99,7 +99,7 @@ claude.ai 网页上的对话不在本机，需要先从官方导出：
 - 导出包里工具会读的只有：`conversations.json`（大账号拆成 `conversations-000.json`、`conversations-001.json`……按文件名排序合并；也可能外面包了一层 `{"conversations": [...]}`）、`user.json`（只用来读出邮箱和电话，加进精确脱敏表，本身不输出）、以及图片文件（根目录的 `file-XXX-原名.png`、`dalle-generations/`、`user-*/` 子目录）。`chat.html`、`message_feedback.json`、`shared_conversations.json` 等直接忽略。
 - 同一个对话出现在几个包里：按 `update_time` 取最新的那一份（整个对话替换，不按消息合并——ChatGPT 的对话是一棵树，混合两个版本可能拼出断裂的树）。包文件名以哈希开头，按名字排序不等于按时间，所以不靠顺序。
 - 语音对话只收文字转写，音频文件本身不收；图片按资源 id 到包里找，找不到的在页面上标注“导出包里没有这个文件”。
-- 输出在 `<out_dir>/chatgpt/`，见 [README](../README.md#chatgpt-历史)；格式细节见 [HOW-IT-WORKS.md](HOW-IT-WORKS.md#三chatgpt-导出包)。
+- 输出在 `<out_dir>/chatgpt/`，见 [README](../README.zh-CN.md#chatgpt-历史)；格式细节见 [HOW-IT-WORKS.md](HOW-IT-WORKS.md#三chatgpt-导出包)。
 
 官方说明：[How do I export my ChatGPT history and data?](https://help.openai.com/en/articles/7260999-how-do-i-export-my-chatgpt-history-and-data)
 
