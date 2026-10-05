@@ -444,9 +444,10 @@ def ai_to_cc(c, cwd, ver):
     rows.append({'type': 'custom-title', 'customTitle': '[claude.ai] ' + (c['name'] or one(turns[0][1], 40)), 'sessionId': sid})
     return rows
 
+def import_cwd(): return os.path.abspath(os.path.expanduser('~/claude-ai-chats'))   # 转换出来的会话都算在这个工作目录名下
 def import_claude_ai(write):
     """claude.ai 对话转成 Claude Code 会话，放在 ~/claude-ai-chats 名下；之后 --register-desktop 就能登记进桌面应用"""
-    cwd = os.path.abspath(os.path.expanduser('~/claude-ai-chats'))
+    cwd = import_cwd()
     proj = os.path.join(os.path.expanduser('~/.claude/projects'), re.sub(r'[^A-Za-z0-9]', '-', cwd))   # Claude Code 按工作目录这样起目录名
     ver = '2.1.0'   # 版本号抄本机最近的会话
     for p in sorted(G(os.path.expanduser('~/.claude/projects') + '/*/*.jsonl'), key=os.path.getmtime)[-1:]:
@@ -474,6 +475,17 @@ def import_claude_ai(write):
 def cc_all():
     files = cc_files(); print(f'Claude Code 文件 {len(files)} 个，读取中…', flush=True)
     SS = [cc_read(p) for p in files]
+    # --import-claude-ai 转出来的会话：转换生成的行（id 是 uuid5，Claude Code 自己用 uuid4）存档里已有 claude.ai 原版，去掉免得收两遍；
+    # 只留在里面接着聊的新内容，一句没接着聊的整个会话不收
+    keep = []
+    for S in SS:
+        if S['cwd'] == import_cwd():
+            gone = [r for r in S['rows'] if len(r[0]) == 36 and r[0][14] == '5']; S['rows'] = [r for r in S['rows'] if r not in gone]
+            STAT['claude.ai 转换行（存档已有原版，不重复收）'] += len(gone)
+            STAT['人工提问:无origin'] -= sum(1 for r in gone if r[2] and r[2]['k'] == 'u')   # 转换出的提问没有 origin，读的时候计过一次，去掉了就减回来，对账才对得上
+            if not S['rows']: STAT['claude.ai 转换会话（没接着聊，不重复收）'] += 1; continue
+        keep.append(S)
+    SS = keep
     # 跨文件归属：每个 uuid 只归一个文件
     holders = defaultdict(list)
     for S in SS:

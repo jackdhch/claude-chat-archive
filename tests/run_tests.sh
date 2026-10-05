@@ -258,6 +258,25 @@ F1=$(ls "$AP"/*.jsonl | head -1); echo '{"type":"user","uuid":"KEEP-MY-NEW-TURN"
 expect_code 0 "接着聊过之后再转" --config "$CFG" --import-claude-ai --write
 grep -q "要转换 0 个" "$T/last.log" && grep -q KEEP-MY-NEW-TURN "$F1" && ok "转过的不重复转、不覆盖接着聊的内容" || bad "转过的被重复转或覆盖了"
 sed -i '/KEEP-MY-NEW-TURN/d' "$F1"
+# 转换出来的会话再导出：转换的内容存档里已有 claude.ai 原版，不能收两遍；在里面接着聊的新内容要收
+"$PY" - "$F1" <<'PY'
+import json, sys
+rs = [json.loads(l) for l in open(sys.argv[1], encoding='utf-8')]; last = [r for r in rs if r['type'] == 'assistant'][-1]
+r = {'parentUuid': last['uuid'], 'isSidechain': False, 'type': 'user', 'uuid': '4b1d0c8e-7a3f-4c2e-9d10-5f6e7a8b9c0d', 'timestamp': '2099-01-01T00:00:00.000Z',
+     'userType': 'external', 'origin': {'kind': 'human'}, 'cwd': last['cwd'], 'sessionId': last['sessionId'], 'message': {'role': 'user', 'content': 'CONTINUED-MARK 接着聊的新问题'}}
+open(sys.argv[1], 'a', encoding='utf-8').write(json.dumps(r, ensure_ascii=False) + '\n')
+PY
+expect_code 0 "转换后再导出" --config "$CFG" --out "$T/out_imp"
+"$PY" - "$T/out_imp" "$FX/expected.json" <<'PY' && ok "存档不重复收转换内容，接着聊的新内容收进来" || bad "存档重复收了转换内容，或漏了接着聊的内容"
+import json, sys, glob
+out, E = sys.argv[1], json.load(open(sys.argv[2], encoding='utf-8')); st = json.load(open(out + '/stats.json', encoding='utf-8'))
+assert st['CC主会话'] == E['cc_sessions'] + 1, st['CC主会话']   # 只多出接着聊过的那一个
+assert st['ai会话'] == E['ai_convs'], st['ai会话']
+pages = ''.join(open(f, encoding='utf-8').read() for f in glob.glob(out + '/s/cc-*.html'))
+assert 'CONTINUED-MARK' in pages and 'BRANCH-EDIT-Q' not in pages, '会话页内容不对'
+assert '检查全部通过' in open(out + '/report.txt', encoding='utf-8').read()
+PY
+sed -i '/CONTINUED-MARK/d' "$F1"
 
 echo "== 7. 补登记到桌面应用 Code 界面"
 # 造一个续接会话：整份复制 basic 再加一行更晚的提问 → basic 被它完整包含，它也有九成以上和 basic 相同（互相包含）
