@@ -2,13 +2,20 @@
 (function () {
   'use strict';
   var D = window.D || [];
-  var CHAT = '(chat)', GENERAL = '(普通对话)', NOTOPIC = '(未分类)', LIMIT = 30;
+  // 界面语言：页面里先写好 window.LANG（'zh' 或 'en'，Python 生成页面时注入）；T(中文, 英文) 二选一，pl 是英文复数
+  var ZH = window.LANG === 'zh';
+  function T(zh, en) { return ZH ? zh : en; }
+  function pl(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
+  var CHAT = '(chat)', GENERAL = '(general)', NOTOPIC = '(untagged)', LIMIT = 30;   // 内部键，界面上显示的文字另走 T()
   // 来源：键、全称、短名。ChatGPT 存档是独立页面（数据里只有 gpt）：来源筛选、图表、图例都只列 gpt；Claude 页照旧 cc + ai。
-  var SRC = { cc: ['Claude Code', 'Code'], ai: ['claude.ai', 'Chat'], gpt: ['ChatGPT', 'GPT'] };
+  var SRC = { cc: ['Claude Code', 'Code'], ai: ['claude.ai', T('Chat', 'claude.ai')], gpt: ['ChatGPT', 'GPT'] };
   var GPT = D.some(function (d) { return d.src === 'gpt'; });
   var ACT = GPT ? ['gpt'] : ['cc', 'ai'];   // 图表里画哪几个来源（堆叠顺序）
   var PSRC = GPT ? 'gpt' : 'cc';            // 哪个来源的 _pk 是“项目”
-  var WEEK = ['一', '二', '三', '四', '五', '六', '日'];
+  var WEEK = T(['一', '二', '三', '四', '五', '六', '日'], ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
+  var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function monShort(m) { return T(m + '月', MON[m - 1]); }
+  var NOPROJ = T('(未记录项目)', '(no project recorded)');
   var SVGNS = 'http://www.w3.org/2000/svg';
 
   function $(id) { return document.getElementById(id); }
@@ -32,10 +39,10 @@
   // ---------- 预处理 ----------
   // 项目文件夹名拆成 [日期, 名字]：260101_demo、260101报告、my-app-260101（6 位日期在开头或结尾）
   function projParts(k) {
-    if (k === CHAT) return ['', 'claude.ai 对话'];
-    if (k === GENERAL) return ['', '普通对话'];
+    if (k === CHAT) return ['', T('claude.ai 对话', 'claude.ai chats')];
+    if (k === GENERAL) return ['', T('普通对话', 'General chats')];
     if (/^GPT /.test(k)) return ['', k];   // 自定义 GPT：'GPT g-xxxx'，别把 id 末尾的数字当日期
-    if (/^(\/home\/[^\/]+|\/Users\/[^\/]+|[A-Za-z]:[\\\/]Users[\\\/][^\\\/]+)[\\\/]?$/.test(k)) return ['', '主目录'];
+    if (/^(\/home\/[^\/]+|\/Users\/[^\/]+|[A-Za-z]:[\\\/]Users[\\\/][^\\\/]+)[\\\/]?$/.test(k)) return ['', T('主目录', 'Home folder')];
     var s = k.split(/[\\\/]/).filter(Boolean).pop() || k, m;
     if ((m = /^(\d{6})[_\- ]?(.+)$/.exec(s))) return [m[1], m[2]];
     if ((m = /^(.+?)[_\- ](\d{6})$/.exec(s))) return [m[2], m[1]];
@@ -59,7 +66,7 @@
   }
   var maxLast = '';
   D.forEach(function (d) {
-    d._pk = d.src === 'ai' ? CHAT : d.src === 'gpt' ? (d.proj || GENERAL) : (d.proj || '(未记录项目)');
+    d._pk = d.src === 'ai' ? CHAT : d.src === 'gpt' ? (d.proj || GENERAL) : (d.proj || NOPROJ);
     d._tp = d.topics && d.topics.length ? d.topics : null;
     d._last = d.end || d.start || '';
     d._sum = summary(d);
@@ -127,24 +134,24 @@
   }
   function renderSide() {
     var cs = count('src', function (d) { return ['all', d.src]; });
-    facet($('f-src'), (GPT ? [] : [{ key: 'all', label: '全部', n: cs.all }]).concat(ACT.map(function (k) {
+    facet($('f-src'), (GPT ? [] : [{ key: 'all', label: T('全部', 'All'), n: cs.all }]).concat(ACT.map(function (k) {
       return { key: k, label: SRC[k][0], n: cs[k], dot: k };
     })), st.src, function (k) { st.src = k || 'all'; });
 
     var cst = count('star', function (d) { return d.star ? ['y'] : []; });
-    facet($('f-star'), [{ key: 'y', label: '★ 只看星标', n: cst.y }], st.star ? 'y' : null,
+    facet($('f-star'), [{ key: 'y', label: T('★ 只看星标', '★ Starred only'), n: cst.y }], st.star ? 'y' : null,
       function (k) { st.star = !!k; });
 
     var cp = count('proj', function (d) { return [d._pk]; });
     facet($('f-proj'), PROJS.concat(GPT ? [] : [CHAT]).map(function (k) {
-      return { key: k, proj: 1, n: cp[k], title: k === CHAT ? 'claude.ai 网页对话（没有项目文件夹）' : k === GENERAL ? '没有指定自定义 GPT 的普通对话' : k, dot: k === CHAT ? 'ai' : null };
+      return { key: k, proj: 1, n: cp[k], title: k === CHAT ? T('claude.ai 网页对话（没有项目文件夹）', 'claude.ai web chats (no project folder)') : k === GENERAL ? T('没有指定自定义 GPT 的普通对话', 'Chats without a custom GPT') : k, dot: k === CHAT ? 'ai' : null };
     }), st.proj, function (k) { st.proj = k; });
 
     var box = $('f-topic');
-    if (!TOPICS.length) { box.textContent = ''; box.appendChild(el('p', 'side-note', '还没有主题标签。打完标签后这里会列出每个主题。')); return; }
+    if (!TOPICS.length) { box.textContent = ''; box.appendChild(el('p', 'side-note', T('还没有主题标签。打完标签后这里会列出每个主题。', 'No topic tags yet. Once conversations are tagged, each topic is listed here.'))); return; }
     var ct = count('topic', function (d) { return d._tp || [NOTOPIC]; });
     facet(box, TOPICS.concat(HAS_UNTAGGED ? [NOTOPIC] : []).map(function (k) {
-      return { key: k, label: k === NOTOPIC ? '未分类' : k, n: ct[k] };
+      return { key: k, label: k === NOTOPIC ? T('未分类', 'Untagged') : k, n: ct[k] };
     }), st.topic, function (k) { st.topic = k; });
   }
 
@@ -164,16 +171,16 @@
     function top(c) { var k = null; for (var x in c) if (k === null || c[x] > c[k]) k = x; return k; }
     var tp = top(pc), tt = top(tc);
     var span = L.length ? dayNum(last) - dayNum(first) + 1 : 0;
-    var T = [
-      ['会话', String(L.length), ACT.map(function (k) { return SRC[k][1] + ' ' + (ns[k] || 0); }).join(' · ')],
-      ['提问', String(nq), L.length ? '平均每个会话 ' + (nq / L.length).toFixed(1) + ' 次' : '—'],
-      ['时间跨度', span ? span + ' 天' : '—', span ? first.slice(0, 10) + ' 起 · 有活动 ' + Object.keys(days).length + ' 天' : '—'],
-      ['最活跃项目', tp ? null : '—', tp ? pc[tp] + ' 个会话 · ' + SRC[PSRC][1] : '当前筛选里没有 ' + SRC[PSRC][1] + ' 会话', tp, 1],
-      ['最活跃主题', tt || '—', tt ? tc[tt] + ' 个会话' : '还没有主题标签', tt, 1]
+    var TILES = [
+      [T('会话', 'Conversations'), String(L.length), ACT.map(function (k) { return SRC[k][1] + ' ' + (ns[k] || 0); }).join(' · ')],
+      [T('提问', 'Prompts'), String(nq), L.length ? T('平均每个会话 ' + (nq / L.length).toFixed(1) + ' 次', 'avg ' + (nq / L.length).toFixed(1) + ' per conversation') : '—'],
+      [T('时间跨度', 'Time span'), span ? T(span + ' 天', pl(span, 'day')) : '—', span ? T(first.slice(0, 10) + ' 起 · 有活动 ' + Object.keys(days).length + ' 天', 'since ' + first.slice(0, 10) + ' · active ' + pl(Object.keys(days).length, 'day')) : '—'],
+      [T('最活跃项目', 'Top project'), tp ? null : '—', tp ? T(pc[tp] + ' 个会话 · ', pl(pc[tp], 'conversation') + ' · ') + SRC[PSRC][1] : T('当前筛选里没有 ' + SRC[PSRC][1] + ' 会话', 'No ' + SRC[PSRC][1] + ' conversations in the current filter'), tp, 1],
+      [T('最活跃主题', 'Top topic'), tt || '—', tt ? T(tc[tt] + ' 个会话', pl(tc[tt], 'conversation')) : T('还没有主题标签', 'No topic tags yet'), tt, 1]
     ];
     var box = $('tiles');
     box.textContent = '';
-    T.forEach(function (t) {
+    TILES.forEach(function (t) {
       var c = el('div', 'tile');
       c.appendChild(el('div', 'tl-k', t[0]));
       var v = el('div', 'tl-v' + (t[4] ? ' txt' : ''), t[1]);
@@ -198,7 +205,7 @@
     }
     return out;
   })();
-  function monthLabel(k) { return k.slice(0, 4) + ' 年 ' + (+k.slice(5, 7)) + ' 月'; }
+  function monthLabel(k) { return ZH ? k.slice(0, 4) + ' 年 ' + (+k.slice(5, 7)) + ' 月' : MON[+k.slice(5, 7) - 1] + ' ' + k.slice(0, 4); }
   function niceStep(max) {
     var raw = max / 3, mag = Math.pow(10, Math.floor(Math.log10(raw || 1))), n = raw / mag;
     return Math.max(1, (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * mag);
@@ -209,7 +216,7 @@
       'H' + (x + w - r) + 'Q' + (x + w) + ',' + y + ' ' + (x + w) + ',' + (y + r) + 'V' + (y + h) + 'Z';
   }
   var monthRows = [];
-  var METRIC = { n: ['会话数', '个会话'], nq: ['提问数', '次提问'] };
+  var METRIC = { n: [T('会话数', 'Conversations'), T('个会话', 'conversations')], nq: [T('提问数', 'Prompts'), T('次提问', 'prompts')] };
   function renderMonths(L) {
     var c = {}, mt = METRIC[st.metric];
     MONTHS.forEach(function (k) { c[k] = { cc: 0, ai: 0, gpt: 0 }; });
@@ -220,9 +227,9 @@
     var step = niceStep(max), top = Math.ceil(max / step) * step;
     var W = 386, padL = 30, padR = 4, padT = 8, plotH = 116, base = padT + plotH, H = base + 34;
     var band = (W - padL - padR) / Math.max(1, MONTHS.length), bw = Math.min(24, band * 0.64);
-    $('m-title').textContent = '每月' + mt[0];
+    $('m-title').textContent = T('每月' + mt[0], mt[0] + ' per month');
     [].forEach.call($('metric').children, function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-m') === st.metric)); });
-    var s = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'viz', role: 'img', 'aria-label': '每月' + mt[0] + '，' + ACT.map(function (k) { return SRC[k][0]; }).join(' 与 ') + (ACT.length > 1 ? ' 堆叠' : '') });
+    var s = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'viz', role: 'img', 'aria-label': T('每月' + mt[0] + '，' + ACT.map(function (k) { return SRC[k][0]; }).join(' 与 ') + (ACT.length > 1 ? ' 堆叠' : ''), mt[0] + ' per month, ' + ACT.map(function (k) { return SRC[k][0]; }).join(' and ') + (ACT.length > 1 ? ' (stacked)' : '')) });
     for (var v = 0; v <= top; v += step) {
       var y = base - v / top * plotH;
       s.appendChild(svg('line', { x1: padL, x2: W - padR, y1: y, y2: y, class: v ? 'grid' : 'axis' }));
@@ -237,9 +244,10 @@
         used += hs;
       });
       var cx = padL + i * band + band / 2, mo = +r.k.slice(5, 7);
-      s.appendChild(svg('text', { x: cx, y: base + 14, class: 'tick' + (st.month === r.k ? ' on' : ''), 'text-anchor': 'middle' }, mo + '月'));
+      if (ZH || band >= 22 || mo % 3 === 1)   // 英文月名更宽：柱子挤的时候只标季度首月
+        s.appendChild(svg('text', { x: cx, y: base + 14, class: 'tick' + (st.month === r.k ? ' on' : ''), 'text-anchor': 'middle' }, monShort(mo)));
       if (i === 0 || mo === 1) s.appendChild(svg('text', { x: cx, y: base + 28, class: 'tick yr', 'text-anchor': 'middle' }, r.k.slice(0, 4)));
-      var hit = svg('rect', { x: padL + i * band, y: padT, width: band, height: plotH, class: 'hit', 'data-i': i, tabindex: 0, 'aria-label': monthLabel(r.k) + '：' + ACT.map(function (k) { return SRC[k][1] + ' ' + r.v[k]; }).join('，') + ' ' + mt[1] });
+      var hit = svg('rect', { x: padL + i * band, y: padT, width: band, height: plotH, class: 'hit', 'data-i': i, tabindex: 0, 'aria-label': monthLabel(r.k) + T('：', ': ') + ACT.map(function (k) { return SRC[k][1] + ' ' + r.v[k]; }).join(T('，', ', ')) + ' ' + mt[1] });
       s.appendChild(hit);
     });
     var box = $('months');
@@ -248,7 +256,7 @@
 
     var t = el('table'), hr = el('tr');
     t.appendChild(el('caption', null, mt[0]));
-    ['月份'].concat(ACT.map(function (k) { return SRC[k][0]; }), ACT.length > 1 ? ['合计'] : []).forEach(function (h) { hr.appendChild(el('th', null, h)); });
+    [T('月份', 'Month')].concat(ACT.map(function (k) { return SRC[k][0]; }), ACT.length > 1 ? [T('合计', 'Total')] : []).forEach(function (h) { hr.appendChild(el('th', null, h)); });
     t.appendChild(hr);
     monthRows.slice().reverse().forEach(function (r) {
       var tr = el('tr');
@@ -263,7 +271,7 @@
     if (!r) return;
     showTip(ev, monthLabel(r.k), [[String(r.t), METRIC[st.metric][1]]].concat(ACT.map(function (k) { return [String(r.v[k]), SRC[k][0], k]; })), monthFoot(r.k));
   }
-  function monthFoot(k) { return st.month === k ? '再点一次取消月份筛选' : '点击只看这个月'; }
+  function monthFoot(k) { return st.month === k ? T('再点一次取消月份筛选', 'Click again to clear the month filter') : T('点击只看这个月', 'Click to show only this month'); }
 
   // ---------- 按天热力格 ----------
   var DAY0 = Infinity, DAY1 = -Infinity;
@@ -289,7 +297,7 @@
 
     var P = 12, C = 10, left = 20, topY = 26;
     var weeks = Math.floor((DAY1 - BASE) / 7) + 1, W = left + weeks * P, H = topY + 7 * P;
-    var s = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'viz heatmap', role: 'img', 'aria-label': '每天会话数热力格，每列是一周' });
+    var s = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'viz heatmap', role: 'img', 'aria-label': T('每天会话数热力格，每列是一周', 'Conversations per day heatmap; each column is one week') });
     [0, 2, 4].forEach(function (r) {
       s.appendChild(svg('text', { x: 0, y: topY + r * P + 8.5, class: 'tick' }, WEEK[r]));
     });
@@ -298,7 +306,7 @@
       var mon = iso(BASE + w * 7), mk = mon.slice(0, 7);
       if (mk !== lastMonth) {
         var x = left + w * P;
-        s.appendChild(svg('text', { x: x, y: 21, class: 'tick' }, (+mk.slice(5, 7)) + '月'));
+        s.appendChild(svg('text', { x: x, y: 21, class: 'tick' }, monShort(+mk.slice(5, 7))));
         if (!lastMonth || mk.slice(5, 7) === '01') s.appendChild(svg('text', { x: x, y: 9, class: 'tick yr' }, mk.slice(0, 4)));
         lastMonth = mk;
       }
@@ -324,8 +332,9 @@
   }
   function heatTip(n, ev) {
     var c = heatDays[n] || { cc: 0, ai: 0, gpt: 0 }, day = iso(n), tot = c.cc + c.ai + c.gpt;
-    showTip(ev, day + ' 周' + WEEK[(new Date(n * 864e5).getUTCDay() + 6) % 7],
-      [[String(tot), '个会话']].concat(ACT.map(function (k) { return [String(c[k]), SRC[k][0], k]; })),
+    var wd = WEEK[(new Date(n * 864e5).getUTCDay() + 6) % 7];
+    showTip(ev, T(day + ' 周' + wd, wd + ' ' + day),
+      [[String(tot), T('个会话', 'conversations')]].concat(ACT.map(function (k) { return [String(c[k]), SRC[k][0], k]; })),
       tot ? monthFoot(day.slice(0, 7)) : null);
   }
 
@@ -419,7 +428,7 @@
   }
   function groupTitle(k) {
     if (st.group === 'proj') return projInto(el('span', 'gn'), k);
-    return el('span', 'gn', st.group === 'topic' ? (k === NOTOPIC ? '未分类' : k) : monthLabel(k));
+    return el('span', 'gn', st.group === 'topic' ? (k === NOTOPIC ? T('未分类', 'Untagged') : k) : monthLabel(k));
   }
   function dateRange(a, b) { a = a.slice(0, 10); b = b.slice(0, 10); return a === b ? a : a + ' → ' + b; }
   function row(d, gk) {
@@ -428,9 +437,9 @@
     a.appendChild(el('i', 'sw ' + d.src));
     var m = el('span', 'rm'), tl = el('span', 'tl'), tt = el('span', 'tt');
     if (d.star) tt.appendChild(el('span', 'star', '★'));
-    tt.appendChild(document.createTextNode(d.t || '(无标题)'));
+    tt.appendChild(document.createTextNode(d.t || T('(无标题)', '(untitled)')));
     tl.appendChild(tt);
-    if (d.arch) tl.appendChild(el('span', 'badge', '已归档'));
+    if (d.arch) tl.appendChild(el('span', 'badge', T('已归档', 'Archived')));
     (d._tp || []).forEach(function (t) { if (t !== gk && t !== st.topic) tl.appendChild(el('span', 'tag', t)); });  // 分组/筛选已表明的主题不再重复
     m.appendChild(tl);
     if (d._sum) m.appendChild(el('span', 'sm' + (d.sum ? '' : ' fallback'), d._sum));
@@ -438,7 +447,7 @@
     var wh = d.src === 'ai' ? el('span', 'where', 'claude.ai') : projInto(el('span', 'where'), d._pk);
     if (d.src !== 'ai') wh.title = d._pk;
     a.appendChild(wh);
-    a.appendChild(el('span', 'nq', (d.nq || 0) + ' 问'));
+    a.appendChild(el('span', 'nq', T((d.nq || 0) + ' 问', pl(d.nq || 0, 'prompt'))));
     var w = el('span', 'when', when(d._last));
     w.title = d.start + ' ~ ' + d._last;
     a.appendChild(w);
@@ -450,7 +459,7 @@
     box.className = 'list g-' + st.group;
     var G = groupsOf(L);
     if (!G.length) {
-      box.appendChild(el('p', 'empty', '没有符合条件的会话。换个关键词，或点列表上方的“清除全部”。'));
+      box.appendChild(el('p', 'empty', T('没有符合条件的会话。换个关键词，或点列表上方的“清除全部”。', 'No conversations match. Try another keyword, or click "Clear all" above the list.')));
       return;
     }
     G.forEach(function (g) {
@@ -466,7 +475,7 @@
       bar.title = ACT.map(function (k) { return SRC[k][1] + ' ' + (g.c[k] || 0); }).join(' · ');
       ACT.forEach(function (k) { if (g.c[k]) { var i = el('i', k); i.style.flexGrow = g.c[k]; bar.appendChild(i); } });
       meta.appendChild(bar);
-      meta.appendChild(el('span', 'gs', g.items.length + ' 个会话 · ' + g.nq + ' 次提问'));
+      meta.appendChild(el('span', 'gs', T(g.items.length + ' 个会话 · ' + g.nq + ' 次提问', pl(g.items.length, 'conversation') + ' · ' + pl(g.nq, 'prompt'))));
       meta.appendChild(el('span', 'gr', dateRange(g.first, g.last)));
       h.appendChild(meta);
       h.addEventListener('click', function () {
@@ -483,7 +492,7 @@
       var gk = st.group === 'topic' ? g.key : null;
       for (var i = 0; i < n; i++) rows.appendChild(row(g.items[i], gk));
       if (n < g.items.length) {
-        var more = el('button', 'more', '再显示 ' + (g.items.length - n) + ' 个');
+        var more = el('button', 'more', T('再显示 ' + (g.items.length - n) + ' 个', 'Show ' + (g.items.length - n) + ' more'));
         more.type = 'button';
         more.addEventListener('click', function () {
           expanded[ck] = 1;
@@ -498,7 +507,7 @@
   }
   function syncFold() {
     var any = document.querySelector('#list .grp:not(.closed)');
-    $('fold').textContent = any ? '全部折叠' : '全部展开';
+    $('fold').textContent = any ? T('全部折叠', 'Collapse all') : T('全部展开', 'Expand all');
   }
   $('fold').addEventListener('click', function () {
     var open = !!document.querySelector('#list .grp:not(.closed)');
@@ -513,11 +522,12 @@
   // ---------- 全文搜索（按需加载 search.js，file:// 下只能用 <script>） ----------
   var ft = $('ft'), loading = false, HREF = {};
   D.forEach(function (d) { HREF[d.href] = d; });
+  function ftTitle(raw) { return T('全文搜索「' + raw + '」', 'Full-text search: "' + raw + '"'); }
   function ftShow(title, note) {
     ft.textContent = '';
     var h = el('div', 'ft-head');
     h.appendChild(el('h2', null, title));
-    var back = el('button', 'ghost', '返回列表');
+    var back = el('button', 'ghost', T('返回列表', 'Back to list'));
     back.type = 'button';
     back.addEventListener('click', ftHide);
     h.appendChild(back);
@@ -533,7 +543,7 @@
     if (!window.S || !window.P) {
       if (loading) return;
       loading = true;
-      ftShow('全文搜索「' + raw + '」', '正在加载全文索引（约 21 MB，第一次要几秒）…');
+      ftShow(ftTitle(raw), T('正在加载全文索引（约 21 MB，第一次要几秒）…', 'Loading the full-text index (about 21 MB; the first time takes a few seconds)…'));
       var sc = document.createElement('script');
       sc.src = 'search.js';
       sc.onload = function () {
@@ -541,7 +551,7 @@
         (window.S || []).forEach(function (e) { e[3] = String(e[2]).toLowerCase(); });
         fullText();
       };
-      sc.onerror = function () { loading = false; ftShow('全文搜索不可用', '没加载到 search.js。标题过滤不受影响。'); };
+      sc.onerror = function () { loading = false; ftShow(T('全文搜索不可用', 'Full-text search unavailable'), T('没加载到 search.js。标题过滤不受影响。', 'Could not load search.js. Title filtering still works.')); };
       document.body.appendChild(sc);
       return;
     }
@@ -563,25 +573,26 @@
     }
     order.sort(function (a, b) { return b.n - a.n; });
     var shown = order.slice(0, 80);
-    ftShow('全文搜索「' + raw + '」',
-      nhit ? '在 ' + order.length + ' 个页面里命中 ' + nhit + ' 条消息' + (order.length > 80 ? '，按命中多少只列前 80 个' : '') + '，每个页面最多显示 3 段。'
-           : '没有命中。试试更短的词，或者检查左侧筛选。');
+    ftShow(ftTitle(raw),
+      nhit ? T('在 ' + order.length + ' 个页面里命中 ' + nhit + ' 条消息' + (order.length > 80 ? '，按命中多少只列前 80 个' : '') + '，每个页面最多显示 3 段。',
+               pl(nhit, 'matching message') + ' in ' + pl(order.length, 'page') + (order.length > 80 ? '; showing the top 80 by number of hits' : '') + '; at most 3 excerpts per page.')
+           : T('没有命中。试试更短的词，或者检查左侧筛选。', 'No matches. Try a shorter word, or check the filters on the left.'));
     shown.forEach(function (g) {
       var sec = el('section', 'ft-page');
       var hd = el('div', 'ft-ph');
       hd.appendChild(el('i', 'sw ' + g.p[2]));
-      var a = el('a', null, g.p[1] || '(无标题)');
+      var a = el('a', null, g.p[1] || T('(无标题)', '(untitled)'));
       a.href = g.p[0];
       hd.appendChild(a);
       var sub = /\/agent-/.test(g.p[0]);
-      if (sub) hd.appendChild(el('span', 'badge', '子 agent'));
-      hd.appendChild(el('span', 'ft-n', g.n + ' 处'));
+      if (sub) hd.appendChild(el('span', 'badge', T('子 agent', 'Subagent')));
+      hd.appendChild(el('span', 'ft-n', T(g.n + ' 处', pl(g.n, 'hit'))));
       sec.appendChild(hd);
       if (g.d) {  // 第二行：属于哪个会话（子 agent 页给出主会话）· 来源/项目 · 日期
         var mt = el('div', 'ft-meta');
         if (sub) {
-          mt.appendChild(document.createTextNode('属于会话 '));
-          var pa = el('a', null, g.d.t || '(无标题)');
+          mt.appendChild(document.createTextNode(T('属于会话 ', 'In conversation ')));
+          var pa = el('a', null, g.d.t || T('(无标题)', '(untitled)'));
           pa.href = g.d.href;
           mt.appendChild(pa);
           mt.appendChild(document.createTextNode(' · '));
@@ -609,12 +620,12 @@
   function clearQ() { qi.value = ''; st.q = ''; ftHide(); }
   function renderChips() {
     var C = [], box = $('chips');
-    if (st.src !== 'all') C.push(['来源', SRC[st.src][0], function () { st.src = 'all'; }, st.src]);
-    if (st.proj) C.push(['项目', null, function () { st.proj = null; }]);
-    if (st.topic) C.push(['主题', st.topic === NOTOPIC ? '未分类' : st.topic, function () { st.topic = null; }]);
-    if (st.month) C.push(['月份', st.month, function () { st.month = null; }]);
-    if (st.star) C.push(['标记', '只看星标', function () { st.star = false; }]);
-    if (st.q) C.push(['搜索', '“' + qi.value.trim() + '”', clearQ]);
+    if (st.src !== 'all') C.push([T('来源', 'Source'), SRC[st.src][0], function () { st.src = 'all'; }, st.src]);
+    if (st.proj) C.push([T('项目', 'Project'), null, function () { st.proj = null; }]);
+    if (st.topic) C.push([T('主题', 'Topic'), st.topic === NOTOPIC ? T('未分类', 'Untagged') : st.topic, function () { st.topic = null; }]);
+    if (st.month) C.push([T('月份', 'Month'), st.month, function () { st.month = null; }]);
+    if (st.star) C.push([T('标记', 'Flag'), T('只看星标', 'Starred only'), function () { st.star = false; }]);
+    if (st.q) C.push([T('搜索', 'Search'), '“' + qi.value.trim() + '”', clearQ]);
     box.textContent = '';
     box.hidden = !C.length;
     C.forEach(function (c) {
@@ -624,12 +635,12 @@
       if (c[3]) b.appendChild(el('i', 'sw ' + c[3]));
       if (c[1] === null) projInto(b, st.proj); else b.appendChild(document.createTextNode(c[1]));
       b.appendChild(el('span', 'cx', '×'));
-      b.setAttribute('aria-label', '去掉筛选：' + c[0] + ' ' + (c[1] === null ? projName(st.proj) : c[1]));
+      b.setAttribute('aria-label', T('去掉筛选：', 'Remove filter: ') + c[0] + ' ' + (c[1] === null ? projName(st.proj) : c[1]));
       b.addEventListener('click', function () { c[2](); render(); });
       box.appendChild(b);
     });
     if (C.length) {
-      var all = el('button', 'chip clear', '清除全部');
+      var all = el('button', 'chip clear', T('清除全部', 'Clear all'));
       all.type = 'button';
       all.addEventListener('click', function () {
         st.src = 'all'; st.proj = st.topic = st.month = null; st.star = false; clearQ(); render();
@@ -648,7 +659,7 @@
     renderHeat(M);
     renderList(L);
     renderChips();
-    $('count').textContent = L.length === D.length ? '共 ' + D.length + ' 个会话' : '显示 ' + L.length + ' / ' + D.length;
+    $('count').textContent = L.length === D.length ? T('共 ' + D.length + ' 个会话', pl(D.length, 'conversation')) : T('显示 ', 'Showing ') + L.length + ' / ' + D.length;
     [].forEach.call($('group').children, function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-g') === st.group)); });
     $('sort').value = st.sort;
     syncFold();

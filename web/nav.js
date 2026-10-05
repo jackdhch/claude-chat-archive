@@ -5,7 +5,7 @@ function mk(q,i,cls){var a=document.createElement('a');a.href='#'+q.id;a.classNa
 var ticks=qs.map(function(q,i){var t=mk(q,i,'tk');t.style.top=(qs.length>1?i/(qs.length-1)*100:0)+'%';rail.appendChild(t);return t});
 var items=qs.map(function(q,i){var a=mk(q,i,'it');list.appendChild(a);return a});
 var bar=document.createElement('div');bar.id='qnav';var up=document.createElement('button'),dn=document.createElement('button'),pos=document.createElement('span');
-up.textContent='▲';up.title='上一个提问（k）';dn.textContent='▼';dn.title='下一个提问（j）';bar.appendChild(up);bar.appendChild(pos);bar.appendChild(dn);
+up.textContent='▲';up.title=window.LANG==='zh'?'上一个提问（k）':'Previous prompt (k)';dn.textContent='▼';dn.title=window.LANG==='zh'?'下一个提问（j）':'Next prompt (j)';bar.appendChild(up);bar.appendChild(pos);bar.appendChild(dn);
 document.body.appendChild(rail);document.body.appendChild(bar);
 function top(q){return q.getBoundingClientRect().top}
 function cur(){var c=-1;for(var i=0;i<qs.length;i++){if(top(qs[i])<=40)c=i;else break}return c}

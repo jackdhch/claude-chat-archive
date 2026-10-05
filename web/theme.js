@@ -15,9 +15,10 @@
     b.type = 'button';
     b.className = 'theme-btn';
     function label() {
-      var next = cur() === 'dark' ? '浅色' : '深色';
-      b.textContent = '切换' + next;
-      b.setAttribute('aria-label', '切换到' + next + '模式');
+      var zh = window.LANG === 'zh', light = cur() === 'dark';   // 界面语言由页面里先写好的 window.LANG 决定，默认英文
+      var next = zh ? (light ? '浅色' : '深色') : (light ? 'light' : 'dark');
+      b.textContent = zh ? '切换' + next : (light ? 'Light mode' : 'Dark mode');
+      b.setAttribute('aria-label', zh ? '切换到' + next + '模式' : 'Switch to ' + next + ' mode');
     }
     b.addEventListener('click', function () {
       var n = cur() === 'dark' ? 'light' : 'dark';

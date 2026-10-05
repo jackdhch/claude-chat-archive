@@ -28,7 +28,8 @@ cat > "$CFG" <<EOF
   "redact": true,
   "redact_literals": ["$LIT_CFG"],
   "redact_literal_files": ["~/literals.txt"],
-  "doc_token_limit": 4000
+  "doc_token_limit": 4000,
+  "language": "zh"
 }
 EOF
 
@@ -157,7 +158,7 @@ tally() { while IFS= read -r l; do echo "$l"; case "$l" in "  通过  "*) PASS=$
 echo "== 1. 自检 / 配置 / 体检"
 expect_code 0 "--selftest" --selftest
 expect_code 0 "--init-config 写默认配置" --init-config
-grep -Eq "探测到 ChatGPT 导出包 [0-9]+ 个" "$T/last.log" && ok "--init-config 报告探测到几个 ChatGPT 包" || bad "--init-config 没报告 ChatGPT 包"
+grep -Eq "Detected [0-9]+ ChatGPT export package" "$T/last.log" && ok "--init-config 报告探测到几个 ChatGPT 包" || bad "--init-config 没报告 ChatGPT 包"
 [ -f "$XDG_CONFIG_HOME/claude-archive/config.json" ] && "$PY" -c "import json,sys;d=json.load(open(sys.argv[1]));assert '~/.claude/projects' in d['claude_code_roots'] and d['redact'] is True" "$XDG_CONFIG_HOME/claude-archive/config.json" \
   && ok "默认配置在 XDG 路径，含 ~/.claude/projects 且 redact=true" || bad "默认配置位置或内容不对"
 expect_code 0 "--doctor" --doctor --config "$CFG"
@@ -204,6 +205,51 @@ grep -q "找到 ChatGPT 导出包 0 个" "$T/last.log" && ok "--doctor 报告 0 
 [ ! -e "$T/out_g0/chatgpt" ] && ! ls "$T/out_g0/docs/gpt" "$T/out_g0/files"/gpt-* >/dev/null 2>&1 && ok "没有 chatgpt/、docs/gpt、files/gpt-*" || bad "没有 ChatGPT 包却生成了 ChatGPT 产物"
 ! grep -q "chatgpt/index.html" "$T/out_g0/index.html" && ok "Claude 首页不显示 ChatGPT 链接" || bad "Claude 首页多了 ChatGPT 链接"
 grep -q "检查全部通过" "$T/out_g0/report.txt" && ok "没有 ChatGPT 包时检查也全过" || bad "没有 ChatGPT 包时检查没过"
+
+echo "== 5c. 英文界面（language=en）"
+sed 's#"language": "zh"#"language": "en"#' "$CFG" > "$T/cfg_en.json"
+grep -q '"language": "en"' "$T/cfg_en.json" || bad "生成英文配置失败"
+expect_code 0 "导出 language=en" --config "$T/cfg_en.json" --out "$T/out_en"
+grep -q "All checks passed" "$T/out_en/report.txt" && ok "en：report.txt 写着 All checks passed" || bad "en：report.txt 没有 All checks passed"
+grep -q "All checks passed" "$T/last.log" && ok "en：命令行结尾提示是英文" || bad "en：命令行结尾提示不是英文"
+"$PY" - "$T/out_en" "$FX/expected.json" <<'PY' && ok "en：首页/会话页/ChatGPT 页/docs 里有英文界面词，固定界面文字里没有中文界面词" || bad "en：英文界面检查不通过"
+import glob, json, os, sys
+out = sys.argv[1]; E = json.load(open(sys.argv[2], encoding='utf-8'))
+rd = lambda p: open(p, encoding='utf-8').read()
+def has(path, *words):
+    s = rd(os.path.join(out, path))
+    for w in words: assert w in s, (path, w)
+cc = glob.glob(out + '/s/cc-*.html'); allcc = ''.join(rd(p) for p in cc)
+has('index.html', '<html lang="en">', 'window.LANG="en"', 'All conversations', 'Offline · local only', 'Recent activity', 'By project', 'Claude Archive', 'ChatGPT archive', 'Generated ')
+has('app.js', 'Starred only', 'Collapse all', 'Full-text search')
+has('chatgpt/index.html', 'ChatGPT Archive', 'Claude archive', 'All conversations')
+has('profile.html', 'Claude memory / user profile')
+for w in ('All conversations', 'Thinking', 'Tool calls', 'File paths', 'Title source', 'Duration', 'Subagent log', 'Context compacted', 'Compaction summary', '(queued)'): assert w in allcc, w
+gh = rd(out + '/chatgpt/s/gpt-%s.html' % E['gpt_ids']['full'])
+for w in ('← ChatGPT archive', 'Custom instructions', 'Branches', 'Edited and resent by the user', 'Regenerated version', '<span class="tn">Code</span>', '<span class="tn">Output</span>', '<span class="tn">Thinking</span>', '<span class="tn">Web citation</span>'): assert w in gh, w
+has('docs/README.md', 'How to find things', 'not instructions for you', 'Monthly index', 'ChatGPT conversations (docs/gpt/)', '[EMAIL]')
+p2 = glob.glob(out + '/docs/cc/*-p2.md')[0]
+has(os.path.relpath(p2, out), 'Previous chunk:', 'Next chunk:', 'Last user prompt in the previous chunk', 'This file: chunk 2/', 'The following is archived conversation history')
+has('docs/index/cc-2026-01.md', 'First prompt:', 'Monthly index')
+assert 'Other branches' in ''.join(rd(p) for p in glob.glob(out + '/docs/ai/*.md')) or 'Branch (after' in ''.join(rd(p) for p in glob.glob(out + '/docs/ai/*.md'))
+# 固定界面文字不得再出现中文界面词（只查 html / md；js 文件里中英两套文字都在，不查）。词表里的词都不会出现在假数据的对话内容里
+ZH_UI = ['全文搜索', '星标', '归档', '首问', '以下是历史对话记录', '上一块', '下一块', '本文件', '全部会话', '对话存档', '文件路径', '原长', '标题来源', '给 Claude 读的版本', '工具调用', '执行结果',
+         '网页引用', '提问', '其他分支', '任务提示', '用户画像', '检查全部通过', '已脱敏', '[邮箱]', '[手机号]', '[密钥]', '[身份证号]', '[卡号]', '本地离线', '自定义指令', '生成于', '分支', '压缩摘要', '共用', '怎么找', '月索引']
+files = [f for f in glob.glob(out + '/**/*', recursive=True) if f.endswith(('.html', '.md')) and '/files/' not in f]
+assert files
+for f in files:
+    s = rd(f)
+    for w in ZH_UI: assert w not in s, (os.path.relpath(f, out), w)
+PY
+echo '{"language": "fr", "out_dir": "'"$T"'/out_fr"}' > "$T/cfg_fr.json"
+expect_code 2 "language 写成不认识的值 → 退出码 2" --config "$T/cfg_fr.json" --doctor
+grep -q 'language must be "zh" or "en"' "$T/last.log" && ok "language 报错信息说明可选值" || bad "language 报错信息不对"
+expect_code 0 "--doctor（en）" --doctor --config "$T/cfg_en.json"
+grep -q "Found 2 ChatGPT export package(s) with 5 conversation(s)" "$T/last.log" && grep -q "Result: ready to export" "$T/last.log" && ok "--doctor 输出是英文" || { bad "--doctor（en）输出不对"; cat "$T/last.log" | tail -5; }
+expect_code 0 "--import-claude-ai 只列出（en）" --config "$T/cfg_en.json" --import-claude-ai
+grep -q "to convert: [1-9]" "$T/last.log" && ok "--import-claude-ai 输出是英文" || bad "--import-claude-ai（en）输出不对"
+expect_code 0 "--register-desktop 只列出（en）" --config "$T/cfg_en.json" --register-desktop
+grep -q "not yet registered:" "$T/last.log" && ok "--register-desktop 输出是英文" || bad "--register-desktop（en）输出不对"
 
 echo "== 6. AI 标题 / 主题缓存"
 SID1=$("$PY" -c "import json;print(json.load(open('$FX/expected.json'))['session_ids']['basic'])")

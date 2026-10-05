@@ -32,7 +32,7 @@
 | `doc_token_limit` | `15000` | 给 Claude 读的 Markdown 文档每一块的大小上限（估算的 token 数）。Claude Code 的 Read 工具一次最多读约 25000 token，留出余量。一般不用改。 |
 | `timezone` | `"local"` | 网页和文档里显示时间用的时区。`"local"` 跟随本机；也可以写 UTC 偏移，如 `"+08:00"`、`"-05:00"`。 |
 | `allow_synced_output` | `false` | 设为 `true` 等于每次都加 `--allow-synced-output`：允许输出目录位于 git 工作区或同步盘里。**不建议打开。** |
-| `language` | `"zh"` | 界面语言。目前界面文字只有中文，这个字段先保留。 |
+| `language` | `"en"` | 界面语言：`"en"`（英文，默认）或 `"zh"`（中文）。管网页、给 Claude 读的 Markdown 文档、命令行输出和报错信息的固定文字；你的对话内容不会被翻译。写成别的值会报配置错误（退出码 2）。语言不同，脱敏占位符也不同（中文 `[邮箱]`、`[已脱敏]`，英文 `[EMAIL]`、`[REDACTED]`）。**中文用户请设成 `"zh"`。** |
 
 ### 最小配置示例
 
@@ -49,7 +49,7 @@
   "redact_literal_files": [],
   "doc_token_limit": 15000,
   "timezone": "local",
-  "language": "zh"
+  "language": "en"
 }
 ```
 

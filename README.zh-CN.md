@@ -71,6 +71,8 @@ git clone https://github.com/jackdhch/claude-chat-archive.git; cd claude-chat-ar
 5. 第一次导出；
 6. 问你要不要加每天自动更新的定时任务。
 
+**界面语言**：现在默认是英文界面。想要中文界面，打开配置文件（`~/.config/claude-archive/config.json`，Windows 是 `%APPDATA%\claude-archive\config.json`），把 `"language"` 改成 `"zh"`，再运行一次导出即可（`--init-config` 和安装脚本生成的配置里写的是 `"en"`）。网页、给 Claude 读的文档、命令行提示都会变成中文；你的对话内容不会被翻译。
+
 完成后打开输出目录里的 `index.html` 就能看（默认在 `~/claude-archive-output/index.html`，安装脚本最后会打印打开命令）。
 
 常用参数：

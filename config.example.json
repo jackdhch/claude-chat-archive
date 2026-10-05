@@ -12,5 +12,5 @@
   "doc_token_limit": 15000,
   "timezone": "local",
   "allow_synced_output": false,
-  "language": "zh"
+  "language": "en"
 }

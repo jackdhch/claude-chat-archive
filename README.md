@@ -32,7 +32,7 @@ Merge your local **Claude Code sessions** and your **claude.ai data export** int
 
 <sub>All screenshots are generated from the fake data in `tests/fixtures`.</sub>
 
-> **Note:** the user interface is currently **Chinese only**. The `language` config field is reserved for future translations; contributions welcome.
+> **Language:** the interface (web pages, the Markdown docs for Claude, command-line output) is English by default. Set `"language": "zh"` in the config for a Chinese interface. Your own conversations are never translated.
 
 ## Features
 
@@ -153,7 +153,7 @@ Config file: `~/.config/claude-archive/config.json` (respects `$XDG_CONFIG_HOME`
 | `redact_literals` / `redact_literal_files` | `[]` | exact strings (or files with one per line) to always redact |
 | `doc_token_limit` | `15000` | estimated token budget per Markdown chunk |
 | `timezone` | `"local"` | display time zone, or a UTC offset like `"+08:00"` |
-| `language` | `"zh"` | reserved |
+| `language` | `"en"` | interface language: `"en"` or `"zh"` |
 
 Full reference (Chinese): [docs/CONFIG.md](docs/CONFIG.md).
 
