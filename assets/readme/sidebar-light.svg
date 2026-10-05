@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" width="1200" height="520" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Helvetica Neue&quot;, Arial, sans-serif">
+<title>Old sessions reappear in the desktop app's Code sidebar</title><desc>Mock-up with made-up titles: after running the register command and reopening the desktop app, old sessions appear grouped by folder</desc>
+<rect x="0.5" y="0.5" width="1199" height="519" rx="18" fill="#fcfcfd" stroke="#e2e3ea"/>
+<text x="56" y="70" font-size="15" font-weight="600" fill="#1b1c21">1 · Run</text>
+<rect x="56" y="88" width="430" height="150" rx="12" fill="#ffffff" stroke="#e2e3ea"/>
+<g id="cmd1"><text x="78" y="128" font-family="&quot;Cascadia Mono&quot;, &quot;SF Mono&quot;, Consolas, ui-monospace, monospace" font-size="15" fill="#1b1c21"><tspan fill="#4b56d2">$ </tspan>python3 claude_archive.py \</text></g>
+<g id="cmd2"><text x="114" y="154" font-family="&quot;Cascadia Mono&quot;, &quot;SF Mono&quot;, Consolas, ui-monospace, monospace" font-size="15" fill="#1b1c21">--import-claude-ai --write</text></g>
+<g id="cmd3"><text x="78" y="190" font-family="&quot;Cascadia Mono&quot;, &quot;SF Mono&quot;, Consolas, ui-monospace, monospace" font-size="15" fill="#1b1c21"><tspan fill="#4b56d2">$ </tspan>python3 claude_archive.py \</text><text x="114" y="216" font-family="&quot;Cascadia Mono&quot;, &quot;SF Mono&quot;, Consolas, ui-monospace, monospace" font-size="15" fill="#1b1c21">--register-desktop --write</text></g>
+<text x="56" y="290" font-size="15" font-weight="600" fill="#1b1c21">2 · Reopen the desktop app</text>
+<text x="56" y="318" font-size="14" fill="#55586a">Old sessions come back, grouped by folder.</text>
+<text x="56" y="342" font-size="14" fill="#55586a">claude.ai chats get their own group, ready to continue.</text>
+<text x="56" y="468" font-size="12" fill="#858898">Mock-up with made-up titles</text>
+<rect x="560" y="40" width="584" height="440" rx="14" fill="#ffffff" stroke="#e2e3ea"/>
+<path d="M560 76 H1144" stroke="#e2e3ea"/>
+<circle cx="582" cy="58" r="5" fill="#e2e3ea"/>
+<circle cx="598" cy="58" r="5" fill="#e2e3ea"/>
+<circle cx="614" cy="58" r="5" fill="#e2e3ea"/>
+<text x="852" y="63" text-anchor="middle" font-size="13" fill="#858898">Claude · Code</text>
+<path d="M560 76 H860 V479 H574 Q561 479 561 466 V76" fill="#f6f6f8"/><path d="M860 76 V480" stroke="#e2e3ea"/>
+<rect x="574" y="90" width="272" height="34" rx="8" fill="#ffffff" stroke="#e2e3ea"/>
+<text x="590" y="112" font-size="14" fill="#1b1c21">＋  New session</text>
+<g id="g0"><text x="586" y="150" font-size="12" fill="#858898">demo-proj</text><text x="834" y="150" text-anchor="end" font-size="12" fill="#858898">3</text></g>
+<g id="g1"><circle cx="590" cy="171" r="3.5" fill="#4b56d2"/><text x="602" y="176" font-size="13.5" fill="#1b1c21">Switch prints to logging</text><text x="834" y="176" text-anchor="end" font-family="&quot;Cascadia Mono&quot;, &quot;SF Mono&quot;, Consolas, ui-monospace, monospace" font-size="11.5" fill="#858898">09-02</text></g>
+<g id="g2"><circle cx="590" cy="199" r="3.5" fill="#4b56d2"/><text x="602" y="204" font-size="13.5" fill="#1b1c21">Unit tests for the parser</text><text x="834" y="204" text-anchor="end" font-family="&quot;Cascadia Mono&quot;, &quot;SF Mono&quot;, Consolas, ui-monospace, monospace" font-size="11.5" fill="#858898">08-27</text></g>
+<g id="g3"><circle cx="590" cy="227" r="3.5" fill="#4b56d2"/><text x="602" y="232" font-size="13.5" fill="#1b1c21">Refactor config loading</text><text x="834" y="232" text-anchor="end" font-family="&quot;Cascadia Mono&quot;, &quot;SF Mono&quot;, Consolas, ui-monospace, monospace" font-size="11.5" fill="#858898">08-19</text></g>
+<g id="g4"><text x="586" y="270" font-size="12" fill="#858898">claude-ai-chats</text><text x="834" y="270" text-anchor="end" font-size="12" fill="#858898">2</text></g>
+<g id="g5"><circle cx="590" cy="291" r="3.5" fill="#d86a30"/><text x="602" y="296" font-size="13.5" fill="#1b1c21">[claude.ai] Trip budget</text><text x="834" y="296" text-anchor="end" font-family="&quot;Cascadia Mono&quot;, &quot;SF Mono&quot;, Consolas, ui-monospace, monospace" font-size="11.5" fill="#858898">06-12</text></g>
+<g id="g6"><circle cx="590" cy="319" r="3.5" fill="#d86a30"/><text x="602" y="324" font-size="13.5" fill="#1b1c21">[claude.ai] Python GIL</text><text x="834" y="324" text-anchor="end" font-family="&quot;Cascadia Mono&quot;, &quot;SF Mono&quot;, Consolas, ui-monospace, monospace" font-size="11.5" fill="#858898">04-21</text></g>
+<g id="g7"><text x="586" y="362" font-size="12" fill="#858898">notes</text><text x="834" y="362" text-anchor="end" font-size="12" fill="#858898">1</text></g>
+<g id="g8"><circle cx="590" cy="383" r="3.5" fill="#4b56d2"/><text x="602" y="388" font-size="13.5" fill="#1b1c21">Weekly report template</text><text x="834" y="388" text-anchor="end" font-family="&quot;Cascadia Mono&quot;, &quot;SF Mono&quot;, Consolas, ui-monospace, monospace" font-size="11.5" fill="#858898">08-30</text></g>
+<rect x="574" y="414" width="272" height="30" rx="7" fill="#e9eaf2"/><text x="590" y="434" font-size="13.5" fill="#1b1c21">New session</text><text x="834" y="434" text-anchor="end" font-size="11.5" fill="#858898">now</text>
+<rect x="884" y="104" width="182" height="9" rx="4.5" fill="#f2f2f5"/>
+<rect x="884" y="126" width="239" height="9" rx="4.5" fill="#f2f2f5"/>
+<rect x="884" y="148" width="146" height="9" rx="4.5" fill="#f2f2f5"/>
+</svg>

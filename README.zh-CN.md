@@ -1,36 +1,91 @@
-# Claude 对话存档（claude-chat-archive）
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/hero-dark.gif">
+    <img src="assets/readme/hero-light.gif" width="100%" alt="claude-chat-archive：在 Claude Code 里接着聊 claude.ai 的旧对话，找回桌面应用里的旧会话，离线搜索 Claude Code、claude.ai 和 ChatGPT 的历史">
+  </picture>
+</p>
 
-**把 claude.ai 的网页聊天带进 Claude Code 接着聊，把桌面应用里丢掉的旧会话找回来，再把所有 Claude 对话收进一个离线、能全文搜索的存档。**
+<p align="center">
+  <a href="#一键安装">快速上手</a> ·
+  <a href="#功能">功能</a> ·
+  <a href="#常见问题">常见问题</a> ·
+  <a href="README.md">English</a>
+</p>
 
-[English](README.md)
+<p align="center">
+  <img alt="Python 3.9+" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white">
+  <img alt="无第三方依赖" src="https://img.shields.io/badge/dependencies-none-2ea44f">
+  <img alt="完全离线" src="https://img.shields.io/badge/runs-100%25%20offline-4b56d2">
+  <img alt="macOS、Linux、Windows、WSL" src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20%7C%20WSL-555">
+  <a href="LICENSE"><img alt="MIT 许可证" src="https://img.shields.io/badge/license-MIT-blue"></a>
+</p>
 
-- **claude.ai 的旧对话，在 Claude Code 里接着聊。** claude.ai 只能导出对话，不能导入。这里把 claude.ai 的导出包转成 Claude Code 会话，在桌面应用里点开就能接着聊。
-- **找回桌面应用里的旧会话。** 在终端里跑的会话，或者换账号、重装后丢掉的会话，会按原来的文件夹重新出现在桌面应用 Code 界面的侧栏里。
-- **Claude Code、claude.ai、ChatGPT 一个离线存档。** 可筛选、全文搜索，有浅色和深色两套配色，另有给本机 Claude 读的分块 Markdown。数据不出你的电脑。
+**Claude 对话存档（claude-chat-archive）** 把你电脑上的 **Claude Code 会话**、**claude.ai 官方导出包**和（可选的）**ChatGPT 官方导出包**合成一个**离线网页**，可筛选、看图表、全文搜索；另外生成一份**给 Claude 自己读的分块 Markdown**。它还能把旧会话放回 **Claude 桌面应用**，并把 claude.ai 的对话转成能接着聊的 Claude Code 会话。全程只在本机，不联网、不上传。
 
-![之前：桌面应用 Code 界面侧栏只有一条新会话；补登记后，旧会话按原来的文件夹出现](docs/screenshots/desktop-register.png)
+> 下面的图和动画是英文界面。界面默认英文，想要中文界面，在配置里设 `"language": "zh"`（见“一键安装”一节末尾）。
 
-<sub>桌面应用相关的两项功能用的是桌面应用自己的内部文件格式（不是官方接口），目前只在 Windows + WSL 上实测过。详见下文“让旧会话出现在桌面应用的 Code 界面”。</sub>
+## 用起来是这样
 
-## 存档
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/demo-dark.gif">
+    <img src="assets/readme/demo-light.gif" width="100%" alt="在过滤框里打字，统计、图表和列表跟着变；回车全文搜索；打开结果直接跳到命中的那条；按 j 和 k 在提问之间跳">
+  </picture>
+</p>
 
-把你电脑上的 **Claude Code 会话**和 **claude.ai 官方导出包**合并成一个**离线网页**（可筛选、全文搜索），外加一份**给 Claude 自己读的分块 Markdown 文档**——全程只在本机，不联网、不上传。
+<sub>边打字边过滤（统计、图表、列表一起变），回车全文搜索，打开结果，再按 <kbd>j</kbd> / <kbd>k</kbd> 在提问之间跳。录制用的是编造的演示数据。</sub>
+
+## 除了看历史，它还能
+
+| | |
+|---|---|
+| **claude.ai 的旧对话，在 Claude Code 里接着聊** | claude.ai 只能导出对话，不能导入。`--import-claude-ai` 把导出包转成 Claude Code 会话，在桌面应用里点开就能接着聊。 |
+| **把旧会话放回桌面应用** | 在终端里跑的会话，或者换账号、重装后丢掉的会话，会按原来的文件夹重新出现在桌面应用 Code 界面的侧栏里（`--register-desktop`）。 |
+| **三家历史合成一个存档** | Claude Code、claude.ai 导出包、ChatGPT 导出包，一个离线网页里全文搜索。 |
+| **给 Claude 读的文档** | 带月索引的分块 Markdown，本机的 Claude 能翻你以前的对话。 |
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/sidebar-dark.gif">
+    <img src="assets/readme/sidebar-light.gif" width="100%" alt="示意图：运行转换和登记命令、重开桌面应用后，旧会话按文件夹出现在 Code 侧栏里，claude.ai 的对话单独一组">
+  </picture>
+</p>
+
+<sub>示意图，会话标题是编的。桌面应用相关的功能用的是它自己的内部文件格式（不是官方接口），目前只在 Windows + WSL 上实测过，详见下文“让旧会话出现在桌面应用的 Code 界面”。</sub>
+
+## 工作原理
+
+```mermaid
+flowchart LR
+  A["Claude Code 会话<br/>~/.claude/projects"] --> P(["claude_archive.py<br/>只在你的电脑上跑"])
+  B["claude.ai 导出包<br/>.zip"] --> P
+  C["ChatGPT 导出包<br/>.zip"] --> P
+  P --> W["离线网页存档<br/>筛选 · 图表 · 全文搜索"]
+  P --> D["给 Claude 读的 Markdown<br/>docs/README.md + 月索引"]
+  P -- "--import-claude-ai<br/>--register-desktop" --> S["Claude 桌面应用<br/>Code 侧栏"]
+```
 
 > [!WARNING]
 > **仅限本机使用。** 生成的输出目录里是你和 Claude 的**原始对话**（代码、账号、私事都可能在里面）。
 > **千万别把输出目录提交到 git、别放进同步盘、别上传、别发给别人。** 默认脱敏只遮得住邮箱、手机号、密钥这类有格式的东西，遮不住人名、案情、截图。详见 [docs/PRIVACY.md](docs/PRIVACY.md)。
 
-![首页（浅色）：左侧按来源、项目、主题筛选，上方是每月和每天的会话统计](docs/screenshots/home-light.png)
+## 截图
 
 <table><tr>
-<td><img src="docs/screenshots/home-dark-topics.png" alt="首页（深色）按主题分组"></td>
-<td><img src="docs/screenshots/session.png" alt="会话页：消息流、折叠的工具调用和脱敏占位符"></td>
+<td width="50%"><img src="docs/screenshots/home-light.png" alt="首页：按来源、项目、主题筛选；每月柱状图和每天热力图"></td>
+<td width="50%"><img src="docs/screenshots/home-dark-topics.png" alt="首页深色模式，按主题分组"></td>
 </tr><tr>
+<td align="center">首页：筛选、每月柱状图、每天热力图</td>
 <td align="center">深色模式，按主题分组</td>
-<td align="center">会话页：思考、工具调用可折叠，敏感信息已换成占位符</td>
+</tr><tr>
+<td><img src="docs/screenshots/session.png" alt="Claude Code 会话页：思考和工具调用可折叠，右侧提问导航"></td>
+<td><img src="docs/screenshots/chatgpt-session-dark.png" alt="ChatGPT 对话页，深色模式"></td>
+</tr><tr>
+<td align="center">会话页：思考、工具调用可折叠</td>
+<td align="center">ChatGPT 历史有单独的页面</td>
 </tr></table>
 
-<sub>截图全部由 `tests/fixtures` 里的假数据生成。</sub>
+<sub>截图和动画全部用编造的演示数据生成（<code>assets/readme/source/make_demo_data.py</code>），用 <code>assets/readme/source/</code> 里的脚本可以重新生成。</sub>
 
 ## 功能
 
@@ -205,7 +260,7 @@ python3 claude_archive.py                 # 导出（几百个会话大约几分
 
 在终端里跑的 Claude Code 会话，Claude 桌面应用的 Code 界面默认不显示。换了账号或重装了桌面应用，以前的会话也会从侧栏消失。其实对话记录都还在 `~/.claude/projects` 里，只是桌面应用那边没登记。
 
-![示意图：之前侧栏只有一条新会话；补登记并重启桌面应用后，旧会话按原来的文件夹出现](docs/screenshots/desktop-register.png)
+动画见上文“除了看历史，它还能”。
 
 ```bash
 python3 claude_archive.py --register-desktop          # 只列出还没登记的会话，不写

@@ -1,36 +1,91 @@
-# claude-chat-archive
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/hero-dark.gif">
+    <img src="assets/readme/hero-light.gif" width="100%" alt="claude-chat-archive. Your Claude history, back where you can use it: continue claude.ai chats in Claude Code, get lost sessions back in the desktop app, search Claude Code, claude.ai and ChatGPT offline.">
+  </picture>
+</p>
 
-**Bring your claude.ai chats into Claude Code, get your lost sessions back in the desktop app, and keep every Claude conversation in one offline, searchable archive.**
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#faq">FAQ</a> ·
+  <a href="README.zh-CN.md">中文说明</a>
+</p>
 
-[中文说明](README.zh-CN.md)
+<p align="center">
+  <img alt="Python 3.9+" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white">
+  <img alt="No dependencies" src="https://img.shields.io/badge/dependencies-none-2ea44f">
+  <img alt="Runs offline" src="https://img.shields.io/badge/runs-100%25%20offline-4b56d2">
+  <img alt="macOS, Linux, Windows, WSL" src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20%7C%20WSL-555">
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-blue"></a>
+</p>
 
-- **Continue old claude.ai chats in Claude Code.** claude.ai can export conversations but can't import them. This turns your claude.ai data export into Claude Code sessions you can open in the desktop app and keep talking to.
-- **Get your old sessions back in the desktop app.** Sessions you ran in a terminal, or lost after switching accounts or reinstalling, reappear in the Claude desktop app's Code sidebar, grouped by folder.
-- **One offline archive for Claude Code, claude.ai and ChatGPT.** Filters, full-text search, light and dark themes, plus chunked Markdown your local Claude can read. Nothing leaves your machine.
+**claude-chat-archive** merges your local **Claude Code sessions**, your **claude.ai data export** and (optionally) your **ChatGPT data export** into an **offline web archive** with filters, charts and full-text search, plus **chunked Markdown that Claude itself can read**. It can also put your old sessions back into the **Claude desktop app** and turn claude.ai chats into Claude Code sessions you can keep talking to. Everything runs on your own machine: no network, no server, no upload.
 
-![Before: the desktop app's Code sidebar shows only one new session. After registering, old sessions appear under their original folders](docs/screenshots/desktop-register.en.png)
+## See it in action
 
-<sub>The two desktop-app features rely on the app's internal file format (not a public API) and are tested on Windows + WSL only. Details in [Show old sessions in the desktop app's Code view](#optional-show-old-sessions-in-the-desktop-apps-code-view).</sub>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/demo-dark.gif">
+    <img src="assets/readme/demo-light.gif" width="100%" alt="Typing in the filter box narrows the stats, charts and list as you type; Enter runs a full-text search; opening a hit jumps to the matching message; j and k jump between prompts.">
+  </picture>
+</p>
 
-## The archive
+<sub>Type to filter (stats, charts and list update as you type), press Enter for full-text search, open a hit, then <kbd>j</kbd> / <kbd>k</kbd> to jump between prompts. Recorded on made-up demo data.</sub>
 
-Merge your local **Claude Code sessions** and your **claude.ai data export** into an **offline web archive** (filters, full-text search) plus a set of **chunked Markdown files that Claude itself can read** — entirely on your own machine. No network, no server, no upload.
+## What else it does
+
+Beyond browsing Claude Code sessions, it can:
+
+| | |
+|---|---|
+| **Continue claude.ai chats in Claude Code** | claude.ai can export conversations but not import them. `--import-claude-ai` turns your export into Claude Code sessions you can resume in the desktop app. |
+| **Put old sessions back in the desktop app** | Sessions you ran in a terminal, or lost after switching accounts or reinstalling, reappear in the Claude desktop app's Code sidebar, grouped by folder (`--register-desktop`). |
+| **Merge three histories** | Claude Code, the claude.ai export and the ChatGPT export, in one offline archive with full-text search. |
+| **Write docs for Claude** | Chunked Markdown with monthly indexes, so your local Claude can look up past conversations. |
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/sidebar-dark.gif">
+    <img src="assets/readme/sidebar-light.gif" width="100%" alt="Mock-up: after running the import and register commands and reopening the desktop app, old sessions appear in the Code sidebar grouped by folder, with claude.ai chats in their own group.">
+  </picture>
+</p>
+
+<sub>Mock-up with made-up titles. The desktop-app features rely on the app's internal file format (not a public API) and are tested on Windows + WSL only; see <a href="#optional-show-old-sessions-in-the-desktop-apps-code-view">details</a>.</sub>
+
+## How it works
+
+```mermaid
+flowchart LR
+  A["Claude Code sessions<br/>~/.claude/projects"] --> P(["claude_archive.py<br/>runs on your machine"])
+  B["claude.ai data export<br/>.zip"] --> P
+  C["ChatGPT data export<br/>.zip"] --> P
+  P --> W["Offline web archive<br/>filters · charts · full-text search"]
+  P --> D["Markdown for Claude<br/>docs/README.md + monthly indexes"]
+  P -- "--import-claude-ai<br/>--register-desktop" --> S["Claude desktop app<br/>Code sidebar"]
+```
 
 > [!WARNING]
 > **Local use only.** The output directory contains your **raw conversations** with Claude (code, accounts, personal matters).
 > **Never commit it to git, never put it in a synced folder, never upload or share it.** Redaction (on by default) only catches things with a fixed format — emails, phone numbers, keys — not names, stories, or screenshots. See [docs/PRIVACY.md](docs/PRIVACY.md) (Chinese).
 
-![Home page (light): filter by source, project, topic; monthly and daily activity charts](docs/screenshots/home-light.png)
+## Screenshots
 
 <table><tr>
-<td><img src="docs/screenshots/home-dark-topics.png" alt="Home page, dark mode, grouped by topic"></td>
-<td><img src="docs/screenshots/session.png" alt="Session page with the prompt navigator on the right"></td>
+<td width="50%"><img src="docs/screenshots/home-light.png" alt="Home page: filter by source, project and topic; monthly bar chart and daily heatmap"></td>
+<td width="50%"><img src="docs/screenshots/home-dark-topics.png" alt="Home page in dark mode, grouped by topic"></td>
 </tr><tr>
+<td align="center">Home: filters, monthly chart, daily heatmap</td>
 <td align="center">Dark mode, grouped by topic</td>
-<td align="center">Session page: collapsible thinking and tool calls, redaction placeholders</td>
+</tr><tr>
+<td><img src="docs/screenshots/session.png" alt="Claude Code session page with collapsible thinking and tool calls and the prompt navigator"></td>
+<td><img src="docs/screenshots/chatgpt-session-dark.png" alt="ChatGPT conversation page in dark mode"></td>
+</tr><tr>
+<td align="center">Session page: collapsible thinking and tool calls</td>
+<td align="center">ChatGPT history gets its own page</td>
 </tr></table>
 
-<sub>All screenshots are generated from the fake data in `tests/fixtures`.</sub>
+<sub>All screenshots and animations use made-up demo data (<code>assets/readme/source/make_demo_data.py</code>); regenerate them with the scripts in <code>assets/readme/source/</code>.</sub>
 
 > **Language:** the interface (web pages, the Markdown docs for Claude, command-line output) is English by default. Set `"language": "zh"` in the config for a Chinese interface. Your own conversations are never translated.
 
@@ -48,7 +103,7 @@ Merge your local **Claude Code sessions** and your **claude.ai data export** int
 - **Light and dark themes**, following the system or toggled by hand.
 - **Minimal dependencies**: Python 3.9+ standard library only. Optionally `markdown-it-py` for nicer Markdown rendering (the installer puts it in the repo's own `.venv`).
 
-## One-step install
+## Quick start
 
 **macOS / Linux / WSL:**
 
@@ -190,7 +245,7 @@ Re-run the installer with `--time HH:MM` to change the time; the old job is repl
 
 Claude Code sessions you ran in a terminal don't appear in the Claude desktop app's Code view, and after switching accounts or reinstalling the app your earlier sessions disappear from the sidebar. The transcripts are still in `~/.claude/projects`; the desktop app just has no entry for them.
 
-![Mock-up: before, the sidebar shows only one new session; after registering and restarting the app, old sessions appear under their original folders](docs/screenshots/desktop-register.en.png)
+See the animation in [What else it does](#what-else-it-does).
 
 ```bash
 python3 claude_archive.py --register-desktop          # list unregistered sessions, write nothing
