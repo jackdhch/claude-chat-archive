@@ -56,9 +56,9 @@ def hero(c):
     s.append('<g id="heat">' + ''.join(f'<rect x="{718 + i * 15.4:.1f}" y="324" width="12" height="12" rx="2.5" fill="{c["h"][v]}"/>' for i, v in enumerate(HEAT)) + '</g>')
     return '\n'.join(s) + '\n</svg>\n'
 
-HERO_MOTION = dict(w=1200, h=400, dur=5.6,
-                   layers=[dict(id=f'row{i}', enter=(0.5 + i * 0.28, 1.3 + i * 0.28), dx=-36, exit=(4.9, 5.5)) for i in range(5)]
-                          + [dict(id='heat', enter=(2.2, 2.9), dx=0, exit=(4.9, 5.5))])
+HERO_MOTION = dict(w=1200, h=400, dur=6.0,   # 首尾都是完成画面：先停住，淡出，再依次滑入，停到结束
+                   layers=[dict(id=f'row{i}', pre=(1.2, 1.6), enter=(1.9 + i * 0.28, 2.7 + i * 0.28), dx=-36) for i in range(5)]
+                          + [dict(id='heat', pre=(1.2, 1.6), enter=(3.5, 4.2), dx=0)])
 
 # ───────────── 侧栏动画 1200×520 ─────────────
 GROUPS = [('demo-proj', [('Switch prints to logging', '09-02'), ('Unit tests for the parser', '08-27'), ('Refactor config loading', '08-19')]),
@@ -105,10 +105,10 @@ def sidebar(c):
     return '\n'.join(s) + '\n</svg>\n', n
 
 def sidebar_motion(n):
-    L = [dict(id='cmd1', reveal=(0.3, 1.0)), dict(id='cmd2', reveal=(1.0, 1.7)), dict(id='cmd3', reveal=(2.0, 3.0))]
-    L += [dict(id=f'g{i}', enter=(3.3 + i * 0.16, 3.9 + i * 0.16), dx=-24, exit=(7.2, 7.8)) for i in range(n)]
-    for l in L[:3]: l['exit'] = (7.2, 7.8)
-    return dict(w=1200, h=520, dur=7.9, layers=L)
+    # 首尾都是完成画面：先停住，清空，命令逐行打出，会话依次出现，停到结束
+    L = [dict(id='cmd1', pre=(1.4, 1.8), reveal=(2.1, 2.8)), dict(id='cmd2', pre=(1.4, 1.8), reveal=(2.8, 3.5)), dict(id='cmd3', pre=(1.4, 1.8), reveal=(3.8, 4.8))]
+    L += [dict(id=f'g{i}', pre=(1.4, 1.8), enter=(5.1 + i * 0.16, 5.7 + i * 0.16), dx=-24) for i in range(n)]
+    return dict(w=1200, h=520, dur=9.6, layers=L)
 
 # ───────────── 逐帧截图 → GIF ─────────────
 FONTS = ''.join(f"@font-face{{font-family:'{f}';src:url('file://{p}')}}" for f, p in
@@ -120,6 +120,7 @@ JS = """window.setT = (t, layers) => {
     const e = document.getElementById(l.id); let o = 1, dx = 0, clip = 0;
     if (l.enter) { const p = ease((t - l.enter[0]) / (l.enter[1] - l.enter[0])); o = p; dx = (1 - p) * (l.dx || 0); }
     if (l.reveal) { const p = Math.min(Math.max((t - l.reveal[0]) / (l.reveal[1] - l.reveal[0]), 0), 1); clip = 100 - 100 * p; o = p > 0 ? 1 : 0; }
+    if (l.pre && t < (l.enter || l.reveal)[0]) { o = 1 - ease((t - l.pre[0]) / (l.pre[1] - l.pre[0])); dx = 0; clip = 0; }
     if (l.exit) { const p = ease((t - l.exit[0]) / (l.exit[1] - l.exit[0])); o *= 1 - p; }
     e.style.opacity = o; e.style.transform = `translate(${dx}px,0)`; e.style.clipPath = clip ? `inset(0 ${clip}% 0 0)` : '';
   }
@@ -135,7 +136,7 @@ def gif(page, svg, m, path):
     for i in range(int(m['dur'] * FPS)):
         page.evaluate('([t, l]) => setT(t, l)', [i / FPS, m['layers']])
         frames.append(Image.open(io.BytesIO(page.screenshot(clip={'x': 0, 'y': 0, 'width': m['w'], 'height': m['h']}))).convert('RGB'))
-    pal = frames[len(frames) // 2].quantize(colors=256, method=Image.Quantize.MEDIANCUT)   # 画面最满的一帧定调色板，所有帧共用
+    pal = frames[0].quantize(colors=256, method=Image.Quantize.MEDIANCUT)   # 第一帧是完成画面、颜色最全，拿它定调色板，所有帧共用
     q = [f.quantize(palette=pal, dither=Image.Dither.NONE) for f in frames]
     q[0].save(path, save_all=True, append_images=q[1:], duration=1000 // FPS, loop=0, optimize=True, disposal=1)
     return len(frames), os.path.getsize(path)

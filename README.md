@@ -37,12 +37,14 @@
 
 Beyond browsing Claude Code sessions, it can:
 
-| | |
-|---|---|
-| **Continue claude.ai chats in Claude Code** | claude.ai can export conversations but not import them. `--import-claude-ai` turns your export into Claude Code sessions you can resume in the desktop app. |
-| **Put old sessions back in the desktop app** | Sessions you ran in a terminal, or lost after switching accounts or reinstalling, reappear in the Claude desktop app's Code sidebar, grouped by folder (`--register-desktop`). |
-| **Merge three histories** | Claude Code, the claude.ai export and the ChatGPT export, in one offline archive with full-text search. |
-| **Write docs for Claude** | Chunked Markdown with monthly indexes, so your local Claude can look up past conversations. |
+- **Continue claude.ai chats in Claude Code**  
+  claude.ai can export conversations but not import them. `--import-claude-ai` turns your export into Claude Code sessions you can resume in the desktop app.
+- **Put old sessions back in the desktop app**  
+  Sessions you ran in a terminal, or lost after switching accounts or reinstalling, reappear in the Claude desktop app's Code sidebar, grouped by folder (`--register-desktop`).
+- **Merge three histories**  
+  Claude Code, the claude.ai export and the ChatGPT export, in one offline archive with full-text search.
+- **Write docs for Claude**  
+  Chunked Markdown with monthly indexes, so your local Claude can look up past conversations.
 
 <p align="center">
   <picture>

@@ -37,12 +37,14 @@
 
 ## 除了看历史，它还能
 
-| | |
-|---|---|
-| **claude.ai 的旧对话，在 Claude Code 里接着聊** | claude.ai 只能导出对话，不能导入。`--import-claude-ai` 把导出包转成 Claude Code 会话，在桌面应用里点开就能接着聊。 |
-| **把旧会话放回桌面应用** | 在终端里跑的会话，或者换账号、重装后丢掉的会话，会按原来的文件夹重新出现在桌面应用 Code 界面的侧栏里（`--register-desktop`）。 |
-| **三家历史合成一个存档** | Claude Code、claude.ai 导出包、ChatGPT 导出包，一个离线网页里全文搜索。 |
-| **给 Claude 读的文档** | 带月索引的分块 Markdown，本机的 Claude 能翻你以前的对话。 |
+- **claude.ai 的旧对话，在 Claude Code 里接着聊**  
+  claude.ai 只能导出对话，不能导入。`--import-claude-ai` 把导出包转成 Claude Code 会话，在桌面应用里点开就能接着聊。
+- **把旧会话放回桌面应用**  
+  在终端里跑的会话，或者换账号、重装后丢掉的会话，会按原来的文件夹重新出现在桌面应用 Code 界面的侧栏里（`--register-desktop`）。
+- **三家历史合成一个存档**  
+  Claude Code、claude.ai 导出包、ChatGPT 导出包，一个离线网页里全文搜索。
+- **给 Claude 读的文档**  
+  带月索引的分块 Markdown，本机的 Claude 能翻你以前的对话。
 
 <p align="center">
   <picture>
