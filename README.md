@@ -57,15 +57,12 @@ Beyond browsing Claude Code sessions, it can:
 
 ## How it works
 
-```mermaid
-flowchart LR
-  A["Claude Code sessions<br/>~/.claude/projects"] --> P(["claude_archive.py<br/>runs on your machine"])
-  B["claude.ai data export<br/>.zip"] --> P
-  C["ChatGPT data export<br/>.zip"] --> P
-  P --> W["Offline web archive<br/>filters · charts · full-text search"]
-  P --> D["Markdown for Claude<br/>docs/README.md + monthly indexes"]
-  P -- "--import-claude-ai<br/>--register-desktop" --> S["Claude desktop app<br/>Code sidebar"]
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/flow-dark.svg">
+    <img src="assets/readme/flow-light.svg" width="100%" alt="Three sources (Claude Code sessions, the claude.ai export, the ChatGPT export) go into claude_archive.py, which runs on your machine with redaction on by default. Out come an offline web archive with filters, charts and search; chunked Markdown for Claude with monthly indexes; and sessions in the Claude desktop app via --register-desktop.">
+  </picture>
+</p>
 
 > [!WARNING]
 > **Local use only.** The output directory contains your **raw conversations** with Claude (code, accounts, personal matters).
@@ -93,6 +90,9 @@ flowchart LR
 
 ## Features
 
+<details>
+<summary><b>Full feature list</b>: sources, home page, search, session pages, redaction, themes</summary>
+
 - **Two sources, one archive**: Claude Code sessions under `~/.claude/projects` (including sub-agents and workflows) and the claude.ai data export. On WSL it also picks up sessions from the Windows side.
 - **ChatGPT history (optional)**: the official ChatGPT data export gets its own page, `chatgpt/index.html` (cross-linked with the Claude archive), with the same filters and full-text search; code, execution output, reasoning, Canvas documents and images are kept. See "ChatGPT history" below.
 - **Home page**: group by project / topic / month; filter by source, star, project, topic; monthly bar chart and daily heatmap; type to filter titles, press Enter for full-text search.
@@ -104,6 +104,8 @@ flowchart LR
 - **Bring old sessions into the desktop app (optional)**: sessions you ran in a terminal don't show up in the Claude desktop app's Code view. You can register them there and pick them up again, and claude.ai conversations can be converted into Claude Code sessions and added too. See "Show old sessions in the desktop app's Code view" below.
 - **Light and dark themes**, following the system or toggled by hand.
 - **Minimal dependencies**: Python 3.9+ standard library only. Optionally `markdown-it-py` for nicer Markdown rendering (the installer puts it in the repo's own `.venv`).
+
+</details>
 
 ## Quick start
 
@@ -132,7 +134,10 @@ The installer:
 
 Then open `index.html` in the output directory (default `~/claude-archive-output/index.html`; the installer prints the command).
 
-Flags (Windows spelling in parentheses):
+<details>
+<summary><b>Installer flags</b>: unattended, offline, no schedule, schedule time</summary>
+
+Windows spelling in parentheses.
 
 | Flag | Effect |
 |---|---|
@@ -142,6 +147,8 @@ Flags (Windows spelling in parentheses):
 | `--time 07:30` (`-Time 07:30`) | time of the scheduled job |
 
 Fully unattended, offline, no scheduling: `bash install.sh --yes --no-markdown --no-schedule`. Re-running the installer is safe. Installing markdown-it-py leaves a pip cache in `~/.cache/pip`, which uninstall does not remove.
+
+</details>
 
 **WSL users**: auto-detection also picks up the Windows side (`C:\Users\<you>\.claude\projects`, claude.ai archives in the Windows Downloads folder). Remove those `/mnt/c/...` paths from the config if you only want WSL sessions.
 

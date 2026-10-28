@@ -57,15 +57,12 @@
 
 ## 工作原理
 
-```mermaid
-flowchart LR
-  A["Claude Code 会话<br/>~/.claude/projects"] --> P(["claude_archive.py<br/>只在你的电脑上跑"])
-  B["claude.ai 导出包<br/>.zip"] --> P
-  C["ChatGPT 导出包<br/>.zip"] --> P
-  P --> W["离线网页存档<br/>筛选 · 图表 · 全文搜索"]
-  P --> D["给 Claude 读的 Markdown<br/>docs/README.md + 月索引"]
-  P -- "--import-claude-ai<br/>--register-desktop" --> S["Claude 桌面应用<br/>Code 侧栏"]
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/flow-zh-dark.svg">
+    <img src="assets/readme/flow-zh-light.svg" width="100%" alt="三个来源（Claude Code 会话、claude.ai 导出包、ChatGPT 导出包）交给只在本机运行、默认打码敏感信息的 claude_archive.py，产出带筛选、图表和全文搜索的离线网页存档，带月索引的分块 Markdown 给 Claude 读，以及通过 --register-desktop 放进 Claude 桌面应用的会话。">
+  </picture>
+</p>
 
 > [!WARNING]
 > **仅限本机使用。** 生成的输出目录里是你和 Claude 的**原始对话**（代码、账号、私事都可能在里面）。
@@ -91,6 +88,9 @@ flowchart LR
 
 ## 功能
 
+<details>
+<summary><b>完整功能清单</b>：数据来源、首页、搜索、会话页、脱敏、配色</summary>
+
 - **两个来源合在一起**：本机 `~/.claude/projects` 下的 Claude Code 会话（含子 agent、workflow），和 claude.ai 设置里导出的数据包。Windows + WSL 两边的会话也能一起收。
 - **ChatGPT 历史（可选）**：ChatGPT 官方导出包也能收，单独生成一个页面 `chatgpt/index.html`（和 Claude 存档互相有链接），同样可筛选、全文搜索，代码、执行结果、思考、Canvas 文档、图片都保留。见下面“ChatGPT 历史”一节。
 - **首页**：按项目 / 主题 / 月份分组，按来源、星标、项目、主题筛选；每月会话数柱状图、每天活跃热力图；输入即过滤标题，回车搜全文。
@@ -102,6 +102,8 @@ flowchart LR
 - **找回桌面应用里的旧会话（可选）**：在终端里跑的会话，Claude 桌面应用的 Code 界面默认不显示。可以把它们补登记进去，点开就能接着聊。claude.ai 网页版的对话也能转成 Claude Code 会话放进去。见下面“让旧会话出现在桌面应用的 Code 界面”一节。
 - **浅色 / 深色**两套配色，跟随系统，也可手动切换。
 - **依赖少**：只要 Python 3.9+，全部用标准库。可选装 markdown-it-py 让 Markdown 排版更好看（安装脚本会装在仓库自己的 `.venv` 里，不动系统环境）。
+
+</details>
 
 ## 一键安装
 
@@ -132,7 +134,8 @@ git clone https://github.com/jackdhch/claude-chat-archive.git; cd claude-chat-ar
 
 完成后打开输出目录里的 `index.html` 就能看（默认在 `~/claude-archive-output/index.html`，安装脚本最后会打印打开命令）。
 
-常用参数：
+<details>
+<summary><b>安装脚本参数</b>：全自动、不联网、不加定时任务、定时时间</summary>
 
 | 参数（Windows 写法） | 作用 |
 |---|---|
@@ -142,6 +145,8 @@ git clone https://github.com/jackdhch/claude-chat-archive.git; cd claude-chat-ar
 | `--time 07:30`（`-Time 07:30`） | 定时任务时间 |
 
 想全自动又不联网、不加定时任务：`bash install.sh --yes --no-markdown --no-schedule`。重复运行安装脚本是安全的。装 markdown-it-py 时 pip 会在 `~/.cache/pip` 留缓存，卸载脚本不删它。
+
+</details>
 
 **WSL 用户注意**：自动探测会把 Windows 那边的 `C:\Users\<你>\.claude\projects`、Windows 下载文件夹里的 claude.ai 导出包也一起收进来。只想要 WSL 里的会话，就在配置里把这些 `/mnt/c/...` 路径删掉。
 
